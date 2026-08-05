@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Panel Industrial</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+.led-ring{width:52px;height:52px;border-radius:50%;border:3px solid var(--brd);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 8px;transition:all .3s;}
+.led-ring.on{background:#ff6b1a33;border-color:#ff9a4a;}
+.led-dot{width:20px;height:20px;border-radius:50%;background:#ff6b1a;opacity:.2;transition:opacity .3s;}
+.led-ring.on .led-dot{opacity:1;}
+.pin-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--brd);}
+.pin-row:last-child{border-bottom:none;}
+.pin-lbl{font-size:12px;color:var(--txt2);min-width:105px;}
+.pin-val{font-family:monospace;font-size:14px;font-weight:700;min-width:55px;text-align:right;}
+.pin-bar{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.pin-bar-fill{height:6px;border-radius:3px;background:var(--acc);transition:width .2s;}
+.pin-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;}
+.adc-b{background:#00c85322;color:var(--ok);border:1px solid var(--ok);}
+.dig-b{background:#2196F322;color:var(--info);border:1px solid var(--info);}
+.ocp-b{background:#e5393522;color:var(--danger);border:1px solid var(--danger);}
+select.pin-sel{background:var(--bg);border:1px solid var(--brd);color:var(--txt);
+  padding:4px 6px;border-radius:5px;font-size:12px;}
+.sonar-val{font-size:22px;font-weight:700;color:var(--acc2);text-align:center;padding:8px 0;}
+.sonar-bar{height:12px;background:var(--bg3);border-radius:6px;overflow:hidden;margin-bottom:8px;}
+.sonar-fill{height:12px;border-radius:6px;background:var(--info);transition:width .3s;}
+</style>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Panel Industrial</div></div>
+  <div class="bdg">PANEL</div>
+</div>
+<div class="wrap">
+
+<!-- MONITOR ADC -->
+<div class="card"><div class="ct">Entradas Analogicas (ADC)</div>
+  <div class="pin-row">
+    <span class="pin-badge adc-b">ADC0</span>
+    <span class="pin-lbl">GPIO0</span>
+    <div class="pin-bar"><div class="pin-bar-fill" id="b0" style="width:0%"></div></div>
+    <span class="pin-val" id="v0">-</span>
+    <span style="font-size:11px;color:var(--txt2);min-width:30px" id="p0">-</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge adc-b">ADC1</span>
+    <span class="pin-lbl">GPIO1</span>
+    <div class="pin-bar"><div class="pin-bar-fill" id="b1" style="width:0%"></div></div>
+    <span class="pin-val" id="v1">-</span>
+    <span style="font-size:11px;color:var(--txt2);min-width:30px" id="p1">-</span>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    Rango: 0 (0V) a 4095 (3.3V). Frecuencia de muestreo: 800 ms.
+  </p>
+</div>
+
+<!-- MONITOR DIGITAL -->
+<div class="card"><div class="ct">Entradas Digitales</div>
+  <div class="pin-row">
+    <span class="pin-badge dig-b">DIG</span>
+    <span class="pin-lbl">GPIO9 — Start</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="d9">-</span>
+    <span style="font-size:11px;color:var(--txt2)">pull-up</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge dig-b">DIG</span>
+    <span class="pin-lbl">GPIO6 — SDA</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="d6">-</span>
+    <span style="font-size:11px;color:var(--txt2)" id="d6-st">I2C on</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge dig-b">DIG</span>
+    <span class="pin-lbl">GPIO7 — SCL</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="d7">-</span>
+    <span style="font-size:11px;color:var(--txt2)" id="d7-st">I2C on</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge dig-b">DIG</span>
+    <span class="pin-lbl">GPIO10 — SPI CS</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="d10">-</span>
+    <span style="font-size:11px;color:var(--txt2)" id="d10-st">SPI on</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge ocp-b">OCP</span>
+    <span class="pin-lbl">GPIO2/3 Motor B</span>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:var(--danger)">Motores — no leer</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-badge ocp-b">OCP</span>
+    <span class="pin-lbl">GPIO4/5 Motor A</span>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:var(--danger)">Motores — no leer</span>
+  </div>
+</div>
+
+<!-- SENSOR ULTRASONICO -->
+<div class="card"><div class="ct">Sensor Ultrasonico HC-SR04</div>
+  <div style="display:flex;gap:10px;margin-bottom:10px">
+    <div style="flex:1">
+      <label style="font-size:12px;color:var(--txt2);display:block;margin-bottom:3px">Pin TRIG:</label>
+      <select id="sonar-trig" class="pin-sel" style="width:100%" onchange="startSonar()">
+        <option value="20" selected>GPIO20 (SPI off)</option>
+        <option value="21">GPIO21 (SPI off)</option>
+        <option value="6">GPIO6 (I2C off)</option>
+        <option value="7">GPIO7 (I2C off)</option>
+        <option value="10">GPIO10 (SPI off)</option>
+      </select>
+    </div>
+    <div style="flex:1">
+      <label style="font-size:12px;color:var(--txt2);display:block;margin-bottom:3px">Pin ECHO:</label>
+      <select id="sonar-echo" class="pin-sel" style="width:100%" onchange="startSonar()">
+        <option value="21" selected>GPIO21 (SPI off)</option>
+        <option value="20">GPIO20 (SPI off)</option>
+        <option value="7">GPIO7 (I2C off)</option>
+        <option value="6">GPIO6 (I2C off)</option>
+        <option value="10">GPIO10 (SPI off)</option>
+      </select>
+    </div>
+  </div>
+  <div class="sonar-val" id="sonar-v">-- cm</div>
+  <div class="sonar-bar"><div class="sonar-fill" id="sonar-b" style="width:0%"></div></div>
+  <div class="row">
+    <button class="bi bsm" id="btn-sonar" onclick="toggleSonar()">&#9654; Activar Sonar</button>
+    <button class="bg bsm" onclick="fetch('/sonar/stop')">&#9632; Detener</button>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    Rango: 2 cm a 400 cm. Requiere NewPing instalada.<br>
+    Los pines SPI/I2C deben estar deshabilitados para usar GPIO6,7,10,20,21 como digitales.
+  </p>
+</div>
+
+<!-- SENSOR DHT22 -->
+<div class="card"><div class="ct">Sensor DHT22 — Temperatura y Humedad</div>
+  <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
+    <label style="font-size:12px;color:var(--txt2)">Pin DATA (1-Wire):</label>
+    <select id="dht-pin" class="pin-sel" onchange="fetch('/dht/pin?pin='+this.value)">
+      <option value="9" selected>GPIO9 — Start (libre)</option>
+      <option value="6">GPIO6 — SDA (I2C off)</option>
+      <option value="7">GPIO7 — SCL (I2C off)</option>
+      <option value="10">GPIO10 — SPI CS (SPI off)</option>
+    </select>
+  </div>
+  <div class="pin-row">
+    <span class="pin-lbl">Temperatura</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="dht-t">-- C</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-lbl">Humedad</span>
+    <div style="flex:1"></div>
+    <span class="pin-val" id="dht-h">-- %</span>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    Conexion: DATA a GPIO seleccionado, 10kOhm pull-up a 3.3V. VCC a 3.3V. GND a GND.
+  </p>
+</div>
+
+<!-- LED / BRILLO -->
+<div class="card"><div class="ct">LED Indicador (GPIO8)</div>
+  <div class="led-ring" id="led-ring"><div class="led-dot" id="led-dot"></div></div>
+  <div class="row" style="margin-bottom:10px">
+    <button class="bo bsm" onclick="ledOn()">Encender</button>
+    <button class="bg bsm" onclick="ledOff()">Apagar</button>
+    <button class="ba bsm" onclick="ledBlink()">Parpadear</button>
+  </div>
+  <label style="font-size:12px;color:var(--txt2);display:block;margin-bottom:4px">Brillo PWM:</label>
+  <div style="display:flex;align-items:center;gap:10px">
+    <input type="range" min="0" max="100" value="0" id="led-sl" style="flex:1"
+      oninput="setLedBrillo(this.value)">
+    <span id="led-pct" style="min-width:35px;font-size:13px;font-family:monospace">0%</span>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">GPIO8 usa logica invertida: LOW=encendido, HIGH=apagado.</p>
+</div>
+
+<!-- SALIDAS DIGITALES -->
+<div class="card"><div class="ct">Salidas Digitales Configurables</div>
+  <div id="gpio-outs">
+    <div class="pin-row">
+      <select class="pin-sel" id="out-pin-1">
+        <option value="9">GPIO9</option>
+        <option value="6">GPIO6 (I2C off)</option>
+        <option value="7">GPIO7 (I2C off)</option>
+        <option value="10">GPIO10 (SPI off)</option>
+        <option value="20">GPIO20 (SPI off)</option>
+        <option value="21">GPIO21 (SPI off)</option>
+      </select>
+      <div style="flex:1"></div>
+      <button class="bo bsm" onclick="gpioOut(document.getElementById('out-pin-1').value,1)">HIGH</button>
+      <button class="bg bsm" onclick="gpioOut(document.getElementById('out-pin-1').value,0)">LOW</button>
+    </div>
+    <div class="pin-row">
+      <select class="pin-sel" id="out-pin-2">
+        <option value="6">GPIO6 (I2C off)</option>
+        <option value="7">GPIO7 (I2C off)</option>
+        <option value="10">GPIO10 (SPI off)</option>
+        <option value="20">GPIO20 (SPI off)</option>
+        <option value="21">GPIO21 (SPI off)</option>
+        <option value="9">GPIO9</option>
+      </select>
+      <div style="flex:1"></div>
+      <button class="bo bsm" onclick="gpioOut(document.getElementById('out-pin-2').value,1)">HIGH</button>
+      <button class="bg bsm" onclick="gpioOut(document.getElementById('out-pin-2').value,0)">LOW</button>
+    </div>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    Salida: 3.3V maximo. No conectar cargas mayores de 12 mA sin transistor de potencia.
+  </p>
+</div>
+
+<!-- VELOCIDAD Y MODO -->
+<div class="card"><div class="ct">Control General</div>
+  <div class="pin-row">
+    <span class="pin-lbl">Velocidad motores</span>
+    <input type="range" min="0" max="255" value="200" id="spd-sl" style="flex:1"
+      oninput="fetch('/spd?val='+this.value);document.getElementById('spd-v').textContent=Math.round(this.value*100/255)+'%'">
+    <span id="spd-v" style="min-width:35px;font-size:13px;font-family:monospace">78%</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-lbl">Modo activo</span>
+    <span class="sv chip cac" id="modo-txt">-</span>
+  </div>
+  <div class="pin-row">
+    <span class="pin-lbl">I2C</span>
+    <span class="chip" id="i2c-chip">-</span>
+    <span style="margin-left:8px"></span>
+    <span class="pin-lbl">SPI</span>
+    <span class="chip" id="spi-chip">-</span>
+  </div>
+  <a data-app-href="panel_config.html" class="btn bg" style="margin-top:8px">&#9881; Configurar I2C / SPI</a>
+</div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<script>
+FRANKY_BASE.rewriteDom();
+var MODES=["IDLE","MICROSUMO","MINISUMO","VIVERO","METEO","ALARMA","ACCESO","BLOQUES"];
+var blinkTmr=null;
+var sonarActive=false;
+var sonarTmr=null;
+
+function ledOn(){
+  clearInterval(blinkTmr);
+  fetch("/led/on");
+  document.getElementById("led-ring").className="led-ring on";
+  document.getElementById("led-sl").value=100;
+  document.getElementById("led-pct").textContent="100%";
+}
+function ledOff(){
+  clearInterval(blinkTmr);
+  fetch("/led/off");
+  document.getElementById("led-ring").className="led-ring off";
+  document.getElementById("led-sl").value=0;
+  document.getElementById("led-pct").textContent="0%";
+}
+function ledBlink(){
+  clearInterval(blinkTmr);
+  var on=false;
+  blinkTmr=setInterval(function(){
+    on=!on; fetch("/led/"+(on?"on":"off"));
+    document.getElementById("led-ring").className="led-ring "+(on?"on":"off");
+  },300);
+}
+function setLedBrillo(pct){
+  var inv=Math.round(255-(parseInt(pct)*255/100));
+  fetch("/led/brillo?val="+inv);
+  document.getElementById("led-pct").textContent=pct+"%";
+  document.getElementById("led-ring").className="led-ring "+(parseInt(pct)>5?"on":"off");
+}
+function gpioOut(pin,val){ fetch("/gpio/out?pin="+pin+"&val="+val); }
+
+function toggleSonar(){
+  sonarActive=!sonarActive;
+  var btn=document.getElementById("btn-sonar");
+  if(sonarActive){
+    btn.textContent="■ Detener Sonar"; btn.className="btn bd bsm";
+    startSonar();
+  } else {
+    clearInterval(sonarTmr); sonarTmr=null;
+    fetch("/sonar/stop");
+    btn.textContent="▶ Activar Sonar"; btn.className="btn bi bsm";
+    document.getElementById("sonar-v").textContent="-- cm";
+    document.getElementById("sonar-b").style.width="0%";
+  }
+}
+function startSonar(){
+  if(!sonarActive) return;
+  clearInterval(sonarTmr);
+  var t=document.getElementById("sonar-trig").value;
+  var e=document.getElementById("sonar-echo").value;
+  sonarTmr=setInterval(function(){
+    fetch("/sonar/read?trig="+t+"&echo="+e)
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var cm=d.cm||0;
+        document.getElementById("sonar-v").textContent=cm+" cm";
+        var pct=Math.min(100,Math.round(cm/4));
+        document.getElementById("sonar-b").style.width=pct+"%";
+      }).catch(function(){});
+  },500);
+}
+
+// Monitor general
+setInterval(function(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    // ADC
+    var pct=Math.round(d.a0/40.95);
+    var e=document.getElementById("v0");if(e)e.textContent=d.a0;
+    var b=document.getElementById("b0");if(b)b.style.width=pct+"%";
+    var p=document.getElementById("p0");if(p)p.textContent=pct+"%";
+    pct=Math.round(d.a1/40.95);
+    e=document.getElementById("v1");if(e)e.textContent=d.a1;
+    b=document.getElementById("b1");if(b)b.style.width=pct+"%";
+    p=document.getElementById("p1");if(p)p.textContent=pct+"%";
+    // Digital
+    var d9=document.getElementById("d9");if(d9)d9.textContent=d.btn?"1":"0";
+    // DHT
+    if(d.temp!==undefined){
+      var dt=document.getElementById("dht-t");if(dt)dt.textContent=d.temp.toFixed(1)+" C";
+      var dh=document.getElementById("dht-h");if(dh)dh.textContent=d.hum.toFixed(1)+" %";
+    }
+    // Modo
+    var m=document.getElementById("modo-txt");if(m)m.textContent=MODES[d.mode]||"IDLE";
+    // I2C / SPI
+    if(d.i2c!==undefined){
+      var ic=document.getElementById("i2c-chip");
+      if(ic){ic.textContent=d.i2c?"ON":"OFF";ic.className="chip "+(d.i2c?"cok":"cof");}
+      var sc=document.getElementById("spi-chip");
+      if(sc){sc.textContent=d.spi?"ON":"OFF";sc.className="chip "+(d.spi?"cok":"cof");}
+      // Indicar estado de pines I2C/SPI en monitor digital
+      var d6st=document.getElementById("d6-st");if(d6st)d6st.textContent=d.i2c?"I2C on":"Libre";
+      var d7st=document.getElementById("d7-st");if(d7st)d7st.textContent=d.i2c?"I2C on":"Libre";
+      var d10st=document.getElementById("d10-st");if(d10st)d10st.textContent=d.spi?"SPI on":"Libre";
+    }
+  });
+},800);
+</script>
+</body></html>

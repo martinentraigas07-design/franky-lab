@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<script src="base.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+</head>
+<body>
+<div class="tb">
+  <img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Panel de Control</div></div>
+  <div class="bdg" id="mode-bdg">IDLE</div>
+</div>
+<div class="wrap">
+  <div class="card">
+    <div class="ct">Estado del Sistema</div>
+    <div class="st"><span class="sl">Firmware</span><span class="sv chip cok">v2.1 LittleFS</span></div>
+    <div class="st"><span class="sl">Modo activo</span><span class="sv chip cac" id="mode-txt">IDLE</span></div>
+    <div class="st"><span class="sl">ADC0</span><span class="sv" id="a0">-</span></div>
+    <div class="st"><span class="sl">Start</span><span class="sv" id="btn">-</span></div>
+  </div>
+  <div class="card">
+    <div class="ct">Módulos</div>
+    <a data-app-href="gamepad.html" class="btn ba">&#127918; Gamepad</a>
+    <a data-app-href="sumo.html" class="btn bd">&#9876; Sumo LNR</a>
+    <a data-app-href="bloques.html" class="btn bi">&#9632; Programación Bloques</a>
+    <a data-app-href="auto.html" class="btn bo">&#9881; Automatizaciones</a>
+    <a data-app-href="panel.html" class="btn bg">&#9881; Panel Industrial</a>
+    <a data-app-href="manual.html" class="btn bg">&#128218; Manual de Uso</a>
+  </div>
+  <div class="card">
+    <a data-app-href="stopall" class="btn bd">&#9632;&#9632; PARAR TODO</a>
+  </div>
+</div>
+<script>
+FRANKY_BASE.rewriteDom();
+var MODES=["IDLE","MICROSUMO","MINISUMO","VIVERO","METEO","ALARMA","ACCESO","BLOQUES"];
+setInterval(function(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    var m=MODES[d.mode]||"IDLE";
+    var mb=document.getElementById("mode-bdg"); if(mb) mb.textContent=m;
+    var mt=document.getElementById("mode-txt"); if(mt) mt.textContent=m;
+    var a=document.getElementById("a0"); if(a) a.textContent=d.a0;
+    var b=document.getElementById("btn"); if(b) b.textContent=d.btn?"LIBRE":"PRES.";
+  });
+},1000);
+</script>
+</body>
+</html>

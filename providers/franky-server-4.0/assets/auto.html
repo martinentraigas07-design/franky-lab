@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Automatizaciones</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Automatizaciones</div></div>
+  <div class="bdg" id="bdg">IDLE</div>
+</div>
+<div class="wrap">
+<div class="ib">Modos predefinidos para proyectos educativos. Ver Manual para conexion de sensores.</div>
+
+<!-- VIVERO -->
+<div class="card"><div class="ct">&#127807; Vivero Automatizado</div>
+  <div class="st"><span class="sl">Temperatura</span><span class="sv" id="tmp">-- C</span></div>
+  <div class="st"><span class="sl">Humedad</span><span class="sv" id="hum">-- %</span></div>
+  <div class="st"><span class="sl">Riego</span><span class="sv chip" id="riego">INACTIVO</span></div>
+  <div class="st">
+    <span class="sl">Sensor temp/hum</span>
+    <span class="sv chip cac">DHT22 — GPIO3 (1-Wire)</span>
+  </div>
+  <div class="st">
+    <span class="sl">Salida riego</span>
+    <span class="sv chip cac">LED GPIO8 / Rele externo</span>
+  </div>
+  <p style="font-size:12px;color:var(--txt2);margin:8px 0">
+    Conexion DHT22: pin DATA a GPIO3, 10kΩ pull-up a 3.3V.<br>
+    Para riego real: conectar rele en GPIO3 u otro GPIO libre.
+  </p>
+  <div class="row">
+    <button class="bo bsm" id="btn-vivero" onclick="setMode('vivero')">&#9654; Activar</button>
+    <button class="bd bsm" onclick="stopAll()">&#9632; Detener</button>
+  </div>
+</div>
+
+<!-- METEO -->
+<div class="card"><div class="ct">&#127782; Estacion Meteorologica</div>
+  <div class="st"><span class="sl">Temperatura</span><span class="sv" id="tmp2">-- C</span></div>
+  <div class="st"><span class="sl">Humedad</span><span class="sv" id="hum2">-- %</span></div>
+  <div class="st">
+    <span class="sl">Sensor temp/hum</span>
+    <span class="sv chip cac">DHT22 — GPIO3 (1-Wire)</span>
+  </div>
+  <div class="st">
+    <span class="sl">Sensor presion</span>
+    <span class="sv chip cac">BMP280 — I2C GPIO6/7 (opcional)</span>
+  </div>
+  <p style="font-size:12px;color:var(--txt2);margin:8px 0">
+    BMP280 requiere I2C habilitado en Panel Industrial.<br>
+    Los datos se muestran en tiempo real desde /api.
+  </p>
+  <div class="row">
+    <button class="bi bsm" onclick="setMode('meteo')">&#9654; Activar</button>
+    <button class="bd bsm" onclick="stopAll()">&#9632; Detener</button>
+  </div>
+</div>
+
+<!-- ALARMA -->
+<div class="card"><div class="ct">&#128680; Sistema de Alarma</div>
+  <div class="st"><span class="sl">Estado</span><span class="sv chip" id="alarma-st">INACTIVO</span></div>
+  <div class="st">
+    <span class="sl">Sensor movimiento</span>
+    <span class="sv chip cac">PIR — ADC0 GPIO0</span>
+  </div>
+  <div class="st">
+    <span class="sl">Indicador</span>
+    <span class="sv chip cac">LED GPIO8 integrado</span>
+  </div>
+  <p style="font-size:12px;color:var(--txt2);margin:8px 0">
+    Sensor PIR: salida digital HIGH = movimiento detectado.<br>
+    Conectar en GPIO0 (ADC0). Umbral: lectura > 2000.
+  </p>
+  <div class="row">
+    <button class="bd bsm" onclick="setMode('alarma')">&#9654; Activar</button>
+    <button class="bg bsm" onclick="fetch('/auto/alarma/reset')">Resetear</button>
+    <button class="bd bsm" onclick="stopAll()">&#9632; Detener</button>
+  </div>
+</div>
+
+<!-- ACCESO -->
+<div class="card"><div class="ct">&#128273; Control de Acceso</div>
+  <div class="st"><span class="sl">Estado</span><span class="sv chip" id="acceso-st">CERRADO</span></div>
+  <div class="st">
+    <span class="sl">Sensor</span>
+    <span class="sv chip cac">Pulsador Start GPIO9</span>
+  </div>
+  <div class="st">
+    <span class="sl">Actuador</span>
+    <span class="sv chip cac">Servo GPIO3 (90°=abierto)</span>
+  </div>
+  <p style="font-size:12px;color:var(--txt2);margin:8px 0">
+    Presionar Start abre el acceso. Servo en GPIO3.<br>
+    Para RFID: conectar modulo RC522 por SPI.
+  </p>
+  <div class="row">
+    <button class="bo bsm" onclick="setMode('acceso')">&#9654; Activar</button>
+    <button class="bd bsm" onclick="stopAll()">&#9632; Detener</button>
+  </div>
+</div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<script>
+FRANKY_BASE.rewriteDom();
+function setMode(m){
+  fetch("/auto/"+m).then(function(){
+    document.getElementById("bdg").textContent=m.toUpperCase();
+  });
+}
+function stopAll(){
+  fetch("/auto/stop").then(function(){
+    document.getElementById("bdg").textContent="IDLE";
+  });
+}
+setInterval(function(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    var t=d.temp?d.temp.toFixed(1)+" C":"--";
+    var h=d.hum?d.hum.toFixed(1)+" %":"--";
+    var e=document.getElementById("tmp");if(e)e.textContent=t;
+    var e2=document.getElementById("hum");if(e2)e2.textContent=h;
+    var e3=document.getElementById("tmp2");if(e3)e3.textContent=t;
+    var e4=document.getElementById("hum2");if(e4)e4.textContent=h;
+    var riego=document.getElementById("riego");
+    if(riego&&d.hum){riego.textContent=d.hum<50?"ACTIVO":"INACTIVO";
+      riego.className="chip "+(d.hum<50?"cok":"cof");}
+    var al=document.getElementById("alarma-st");
+    if(al){al.textContent=d.alarma?"ALARMA":"VIGILANDO";
+      al.className="chip "+(d.alarma?"cda":"cok");}
+    var ac=document.getElementById("acceso-st");
+    if(ac){ac.textContent=d.acceso?"ABIERTO":"CERRADO";
+      ac.className="chip "+(d.acceso?"cok":"cof");}
+  });
+},2000);
+</script>
+</body></html>

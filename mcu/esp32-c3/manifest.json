@@ -1,0 +1,12 @@
+{
+  "mcuId": "esp32-c3",
+  "displayName": "ESP32-C3 (RISC-V, 160MHz)",
+  "gpioCount": 22,
+  "adcCapablePins": [0, 1],
+  "pwmChannels": 4,
+  "buses": {
+    "i2c": { "sda": 6, "scl": 7 },
+    "spi": { "miso": 1, "mosi": 20, "sclk": 21 }
+  },
+  "notes": "Solo GPIO0 y GPIO1 tienen ADC físico — regla de los 2 ADC (ver providers/franky-server-4.0/firmware/validation.ts)."
+}

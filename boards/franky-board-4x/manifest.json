@@ -1,0 +1,18 @@
+{
+  "boardId": "franky-board-4x",
+  "displayName": "FRANKY Board 4.x",
+  "mcu": "esp32-c3",
+  "pinBindings": [
+    { "component": "motor.izquierdo.forward", "mcuPin": 5, "via": "hbridge-integrado" },
+    { "component": "motor.izquierdo.reverse", "mcuPin": 4, "via": "hbridge-integrado" },
+    { "component": "motor.derecho.forward",   "mcuPin": 3, "via": "hbridge-integrado" },
+    { "component": "motor.derecho.reverse",   "mcuPin": 2, "via": "hbridge-integrado" },
+    { "component": "sensor.adc0",             "mcuPin": 0 },
+    { "component": "sensor.adc1",             "mcuPin": 1 },
+    { "component": "led.estado",              "mcuPin": 8 },
+    { "component": "boton.usuario",           "mcuPin": 9 },
+    { "component": "sonar.trig",               "mcuPin": 20 },
+    { "component": "sonar.echo",               "mcuPin": 21 }
+  ],
+  "robotProfile": "franky-4x-standard"
+}

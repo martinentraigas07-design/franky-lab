@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<script src="base.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Gamepad</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+.gpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:0 auto 16px;}
+.gb{background:var(--bg3);border:2px solid var(--brd);border-radius:14px;
+  height:75px;display:flex;align-items:center;justify-content:center;
+  font-size:28px;cursor:pointer;user-select:none;-webkit-user-select:none;
+  transition:all .1s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.gb:active,.gb.act{background:var(--acc);border-color:var(--acc2);transform:scale(.92);}
+.gbs{background:#1a0000;border-color:var(--danger);color:var(--danger);}
+.gbs:active{background:var(--danger);color:#fff;}
+.jzone{position:relative;width:220px;height:220px;border-radius:50%;
+  border:3px solid var(--brd);margin:0 auto 16px;
+  background:radial-gradient(circle at center,var(--bg3) 0%,var(--bg) 100%);}
+.jknob{position:absolute;width:80px;height:80px;border-radius:50%;
+  background:var(--bg4);border:3px solid var(--acc);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  cursor:grab;touch-action:none;}
+.srow{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.srow span{color:var(--txt2);font-size:13px;min-width:70px;}
+.mode-sel{display:flex;gap:8px;margin-bottom:12px;}
+.mode-btn{flex:1;padding:8px;border:2px solid var(--brd);border-radius:8px;
+  background:var(--bg3);color:var(--txt2);font-size:12px;font-weight:700;cursor:pointer;text-align:center;}
+.mode-btn.active{border-color:var(--acc);color:var(--acc2);background:var(--bg4);}
+/* Monitor de velocidad por motor */
+.motor-monitor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0;}
+.motor-box{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:10px;text-align:center;}
+.motor-box .motor-label{font-size:11px;color:var(--txt2);margin-bottom:4px;}
+.motor-box .motor-pwm{font-family:monospace;font-size:22px;font-weight:700;color:var(--acc2);}
+.motor-box .motor-pct{font-size:11px;color:var(--txt2);}
+.motor-bar-wrap{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-top:6px;}
+.motor-bar-fill{height:8px;border-radius:4px;transition:width .15s;background:var(--acc);}
+.dir-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;margin-top:4px;display:inline-block;}
+.dir-f{background:#00c85322;color:var(--ok);border:1px solid var(--ok);}
+.dir-b{background:#f4433622;color:var(--danger);border:1px solid var(--danger);}
+.dir-s{background:var(--bg4);color:var(--txt2);border:1px solid var(--brd);}
+</style>
+</head>
+<body>
+<div class="tb">
+  <img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Control Manual</div></div>
+  <div class="bdg">GAMEPAD</div>
+</div>
+<div class="wrap">
+
+  <!-- Selector D-pad / Joystick -->
+  <div class="card">
+    <div class="ct">Modo de Control</div>
+    <div class="mode-sel">
+      <div class="mode-btn active" id="btn-dpad" onclick="setMode('dpad')">D-PAD</div>
+      <div class="mode-btn" id="btn-joy" onclick="setMode('joy')">JOYSTICK</div>
+    </div>
+
+    <!-- D-PAD -->
+    <div id="dpad-ctrl">
+      <div class="gpad">
+        <div></div>
+        <div class="gb" id="bf"
+          ontouchstart="mv('f')" onmousedown="mv('f')"
+          ontouchend="ms()" onmouseup="ms()">&#9650;</div>
+        <div></div>
+        <div class="gb" id="bl"
+          ontouchstart="mv('l')" onmousedown="mv('l')"
+          ontouchend="ms()" onmouseup="ms()">&#9668;</div>
+        <div class="gb gbs" onclick="ms()">&#11035;</div>
+        <div class="gb" id="br"
+          ontouchstart="mv('r')" onmousedown="mv('r')"
+          ontouchend="ms()" onmouseup="ms()">&#9658;</div>
+        <div></div>
+        <div class="gb" id="bb"
+          ontouchstart="mv('b')" onmousedown="mv('b')"
+          ontouchend="ms()" onmouseup="ms()">&#9660;</div>
+        <div></div>
+      </div>
+    </div>
+
+    <!-- JOYSTICK virtual -->
+    <div id="joy-ctrl" style="display:none">
+      <div class="jzone" id="jzone">
+        <div class="jknob" id="jknob">&#10012;</div>
+      </div>
+      <p style="text-align:center;font-size:12px;color:var(--txt2)">Arrastrá el joystick</p>
+    </div>
+  </div>
+
+  <!-- Velocidad -->
+  <div class="card">
+    <div class="ct">Velocidad</div>
+    <div class="srow">
+      <span>PWM Normal</span>
+      <input type="range" min="0" max="255" value="200" id="spd" oninput="updSpd(this.value)">
+      <span id="spdlbl">78%</span>
+    </div>
+    <div class="srow">
+      <span>PWM Turbo</span>
+      <input type="range" min="0" max="255" value="255" id="turbo" oninput="updTurbo(this.value)">
+      <span id="turbolbl">100%</span>
+    </div>
+    <div class="row">
+      <!-- TURBO: usa el PWM del slider de turbo (no 255 fijo) -->
+      <button class="bo bsm"
+        ontouchstart="mvTurbo()" onmousedown="mvTurbo()"
+        ontouchend="ms()" onmouseup="ms()">&#9650; TURBO</button>
+      <button class="bd bsm" onclick="ms()">&#9632; STOP</button>
+    </div>
+  </div>
+
+  <!-- Monitor de velocidad POR MOTOR -->
+  <div class="card">
+    <div class="ct">Velocidad por Motor (PWM real aplicado)</div>
+    <p style="font-size:12px;color:var(--txt2);margin-bottom:8px">
+      Si al avanzar el robot gira, ajustá el Trim en la pantalla de Sumo. Ambos deben mostrar igual valor.
+    </p>
+    <div class="motor-monitor">
+      <div class="motor-box">
+        <div class="motor-label">Motor A (MA)</div>
+        <div class="motor-pwm" id="pwmA-val">0</div>
+        <div class="motor-pct" id="pwmA-pct">0%</div>
+        <div class="motor-bar-wrap"><div class="motor-bar-fill" id="pwmA-bar" style="width:0%"></div></div>
+        <div id="pwmA-dir" class="dir-badge dir-s">STOP</div>
+      </div>
+      <div class="motor-box">
+        <div class="motor-label">Motor B (MB)</div>
+        <div class="motor-pwm" id="pwmB-val">0</div>
+        <div class="motor-pct" id="pwmB-pct">0%</div>
+        <div class="motor-bar-wrap"><div class="motor-bar-fill" id="pwmB-bar" style="width:0%"></div></div>
+        <div id="pwmB-dir" class="dir-badge dir-s">STOP</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--txt2)">
+      Trim activo → A: <span id="trimA-disp">255</span> | B: <span id="trimB-disp">255</span>
+    </div>
+  </div>
+
+  <!-- Sensores live -->
+  <div class="card">
+    <div class="ct">Sensores en Vivo</div>
+    <div class="st"><span class="sl">ADC0 (GPIO0)</span>
+      <div style="flex:1;margin-left:10px">
+        <div style="display:flex;justify-content:space-between">
+          <span class="sv" id="a0">-</span><span id="a0p" style="color:var(--txt2)">-</span>
+        </div>
+        <div class="bar"><div class="barf" id="a0b" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="st"><span class="sl">Pulsador Start</span><span class="sv" id="btn2">-</span></div>
+  </div>
+
+  <a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<script>
+FRANKY_BASE.rewriteDom();
+var spd = 200;
+var turboVal = 255;
+var lastDir = "s";
+
+document.getElementById("spd").value = spd;
+document.getElementById("spdlbl").textContent = Math.round(spd*100/255)+"%";
+document.getElementById("turbo").value = turboVal;
+
+function mv(d, s) {
+  lastDir = d;
+  var v = (s !== undefined) ? s : spd;
+  fetch("/mv?d="+d);
+  fetch("/spd?val="+v);
+}
+function mvTurbo() {
+  lastDir = "f";
+  fetch("/spd?val="+turboVal);
+  fetch("/mv?d=f");
+}
+function ms() {
+  lastDir = "s";
+  fetch("/st");
+}
+function updSpd(v) {
+  spd = parseInt(v);
+  document.getElementById("spdlbl").textContent = Math.round(v*100/255)+"%";
+  fetch("/spd?val="+v);
+}
+function updTurbo(v) {
+  turboVal = parseInt(v);
+  document.getElementById("turbolbl").textContent = Math.round(v*100/255)+"%";
+}
+
+// Modo D-pad / Joystick
+function setMode(m) {
+  document.getElementById("dpad-ctrl").style.display = m==="dpad"?"block":"none";
+  document.getElementById("joy-ctrl").style.display  = m==="joy"?"block":"none";
+  document.getElementById("btn-dpad").className = "mode-btn"+(m==="dpad"?" active":"");
+  document.getElementById("btn-joy").className  = "mode-btn"+(m==="joy"?" active":"");
+}
+
+// Joystick virtual
+(function(){
+  var jz=document.getElementById("jzone");
+  var jk=document.getElementById("jknob");
+  var active=false, R=90, lastCmd="";
+
+  function getPos(e) {
+    var touch=e.touches?e.touches[0]:e;
+    var rect=jz.getBoundingClientRect();
+    return { x: touch.clientX-rect.left-rect.width/2, y: touch.clientY-rect.top-rect.height/2 };
+  }
+  function clamp(pos) {
+    var d=Math.sqrt(pos.x*pos.x+pos.y*pos.y);
+    if(d>R){pos.x=pos.x/d*R; pos.y=pos.y/d*R;}
+    return pos;
+  }
+  function sendFromPos(pos) {
+    var ax=Math.abs(pos.x), ay=Math.abs(pos.y), dead=15, cmd="s";
+    if(ax<dead&&ay<dead){cmd="s";}
+    else if(ay>ax){cmd=pos.y<0?"f":"b";}
+    else{cmd=pos.x>0?"r":"l";}
+    if(cmd!==lastCmd){
+      lastCmd=cmd;
+      if(cmd==="s") fetch("/st");
+      else fetch("/mv?d="+cmd);
+    }
+  }
+  function move(e) {
+    if(!active) return;
+    e.preventDefault();
+    var pos=clamp(getPos(e));
+    jk.style.left=(50+pos.x/jz.offsetWidth*100)+"%";
+    jk.style.top=(50+pos.y/jz.offsetHeight*100)+"%";
+    sendFromPos(pos);
+  }
+  function end() {
+    active=false;
+    jk.style.left="50%"; jk.style.top="50%";
+    fetch("/st"); lastCmd="";
+  }
+  jz.addEventListener("touchstart",function(e){active=true;e.preventDefault();},{passive:false});
+  jz.addEventListener("mousedown",function(){active=true;});
+  jz.addEventListener("touchmove",move,{passive:false});
+  jz.addEventListener("mousemove",move);
+  jz.addEventListener("touchend",end);
+  jz.addEventListener("mouseup",end);
+  document.addEventListener("mouseup",end);
+})();
+
+document.querySelectorAll(".gb").forEach(function(b){
+  b.addEventListener("touchstart",function(e){e.preventDefault();},{passive:false});
+});
+
+// Monitor live — actualiza sensors y velocidad por motor
+function getDirLabel(dir) {
+  if(dir==="f") return {text:"ADELANTE",cls:"dir-f"};
+  if(dir==="b") return {text:"ATRAS",cls:"dir-b"};
+  if(dir==="l") return {text:"IZQ",cls:"dir-s"};
+  if(dir==="r") return {text:"DER",cls:"dir-s"};
+  return {text:"STOP",cls:"dir-s"};
+}
+
+setInterval(function(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    // Sensores básicos
+    var pct=Math.round(d.a0/40.95);
+    var e=document.getElementById("a0"); if(e)e.textContent=d.a0;
+    var p=document.getElementById("a0p"); if(p)p.textContent=pct+"%";
+    var b2=document.getElementById("a0b"); if(b2)b2.style.width=pct+"%";
+    var bt=document.getElementById("btn2"); if(bt)bt.textContent=d.btn?"LIBRE":"PRES.";
+
+    // Velocidad por motor
+    var pA=d.pwmA||0, pB=d.pwmB||0;
+    var pctA=Math.round(pA*100/255), pctB=Math.round(pB*100/255);
+    document.getElementById("pwmA-val").textContent=pA;
+    document.getElementById("pwmA-pct").textContent=pctA+"%";
+    document.getElementById("pwmA-bar").style.width=pctA+"%";
+    document.getElementById("pwmB-val").textContent=pB;
+    document.getElementById("pwmB-pct").textContent=pctB+"%";
+    document.getElementById("pwmB-bar").style.width=pctB+"%";
+
+    // Dirección actual (basado en lastDir del JS)
+    var dl=getDirLabel(lastDir);
+    var da=document.getElementById("pwmA-dir"),db=document.getElementById("pwmB-dir");
+    if(da){da.textContent=dl.text;da.className="dir-badge "+dl.cls;}
+    if(db){db.textContent=dl.text;db.className="dir-badge "+dl.cls;}
+
+    // Mostrar trim activo
+    var tA=document.getElementById("trimA-disp"),tB=document.getElementById("trimB-disp");
+    if(tA&&d.trimA!==undefined)tA.textContent=d.trimA+" ("+Math.round(d.trimA*100/255)+"%)";
+    if(tB&&d.trimB!==undefined)tB.textContent=d.trimB+" ("+Math.round(d.trimB*100/255)+"%)";
+  });
+},350);
+</script>
+</body>
+</html>

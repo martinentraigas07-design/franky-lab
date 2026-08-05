@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Config Buses</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Configuracion de Buses</div></div>
+  <div class="bdg">CONFIG</div>
+</div>
+<div class="wrap">
+<div class="bw">Al guardar, la placa se reinicia para reconfigurar los perifericos.</div>
+<div class="card"><div class="ct">Buses de Comunicacion I2C / SPI</div>
+<form data-app-action="panel/save" method="GET">
+  <div class="st">
+    <div>
+      <div style="font-weight:700;font-size:14px;color:var(--txt)">Bus I2C</div>
+      <div style="font-size:12px;color:var(--txt2)">GPIO6 (SDA) / GPIO7 (SCL)<br>OLED, sensores I2C, expansores</div>
+    </div>
+    <input type="checkbox" name="i2c" id="chk-i2c" style="width:24px;height:24px;accent-color:var(--acc);">
+  </div>
+  <div class="st" style="margin-top:8px">
+    <div>
+      <div style="font-weight:700;font-size:14px;color:var(--txt)">Bus SPI</div>
+      <div style="font-size:12px;color:var(--txt2)">GPIO1 (MISO) / GPIO10 (CS) / GPIO20 (SCLK) / GPIO21 (MOSI)<br>SD card, displays SPI, ADC externo</div>
+    </div>
+    <input type="checkbox" name="spi" id="chk-spi" style="width:24px;height:24px;accent-color:var(--acc);">
+  </div>
+
+  <div class="ib" style="margin-top:12px">
+    <b>Importante:</b> Al deshabilitar I2C, GPIO6 y GPIO7 quedan libres para sensores digitales (Minisumo).<br>
+    Al deshabilitar SPI, GPIO1, GPIO10, GPIO20 y GPIO21 quedan libres.
+  </div>
+
+  <button type="submit" class="btn ba" style="margin-top:12px">Guardar y Reiniciar</button>
+</form>
+</div>
+
+<div class="card"><div class="ct">Estado Actual</div>
+  <div class="st"><span class="sl">I2C</span><span class="sv chip" id="i2c-st">cargando...</span></div>
+  <div class="st"><span class="sl">SPI</span><span class="sv chip" id="spi-st">cargando...</span></div>
+</div>
+
+<a data-app-href="panel.html" class="btn bg">&#8592; Volver al Panel</a>
+</div>
+<script>
+FRANKY_BASE.rewriteDom();
+fetch("/api").then(function(r){return r.json();}).then(function(d){
+  var i2c=document.getElementById("i2c-st");
+  var spi=document.getElementById("spi-st");
+  var chi2c=document.getElementById("chk-i2c");
+  var chspi=document.getElementById("chk-spi");
+  if(d.i2c){
+    if(i2c){i2c.textContent="HABILITADO";i2c.className="chip cok";}
+    if(chi2c)chi2c.checked=true;
+  } else {
+    if(i2c){i2c.textContent="DESHABILITADO";i2c.className="chip cof";}
+  }
+  if(d.spi){
+    if(spi){spi.textContent="HABILITADO";spi.className="chip cok";}
+    if(chspi)chspi.checked=true;
+  } else {
+    if(spi){spi.textContent="DESHABILITADO";spi.className="chip cof";}
+  }
+});
+</script>
+</body></html>

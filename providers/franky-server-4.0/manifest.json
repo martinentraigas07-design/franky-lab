@@ -1,0 +1,23 @@
+{
+  "providerId": "franky-server-4.0",
+  "displayName": "FRANKY Server 4.0",
+  "providerVersion": "1.0.0",
+  "targetBoard": "franky-board-4x",
+  "firmwareCompatibility": { "min": "3.2.0-LNR", "max": "3.2.x-LNR" },
+  "entryPoint": "index.html",
+  "apiRoutes": [
+    "/api", "/debug", "/bloques/list",
+    "/mv", "/st", "/spd", "/stopall",
+    "/sumo/config", "/sumo/trim", "/sumo/micro", "/sumo/mini", "/sumo/stop", "/sumo/umbral",
+    "/bloques/add", "/bloques/del", "/bloques/run", "/bloques/stop", "/bloques/clear",
+    "/auto/vivero", "/auto/meteo", "/auto/alarma", "/auto/alarma/reset", "/auto/acceso", "/auto/stop",
+    "/panel/config", "/panel/save",
+    "/led/on", "/led/off", "/led/brillo",
+    "/gpio/out", "/gpio/read",
+    "/sonar/read", "/sonar/stop", "/dht/pin"
+  ],
+  "labRoutes": ["/lab/state"],
+  "changelog": [
+    { "version": "1.0.0", "notes": "Migración inicial desde Etapas 1-2, reorganizado según ADR-001/002/003." }
+  ]
+}
