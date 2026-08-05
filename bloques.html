@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<script src="base.js"></script>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Franky 4.0 - Bloques</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+#bly-wrap{position:relative;width:100%;height:360px;border:1px solid var(--brd);
+  border-radius:8px;overflow:hidden;background:#1a1a2e;margin-bottom:10px;}
+#bly-div{position:absolute;width:100%;height:100%;}
+.code-out{background:#0d1117;border:1px solid var(--brd);border-radius:8px;padding:12px;
+  font-family:monospace;font-size:12px;color:#79c0ff;white-space:pre;overflow:auto;
+  max-height:220px;margin-bottom:10px;}
+.prog-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--bg3);border-radius:8px;margin-bottom:10px;font-size:13px;}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--brd);flex-shrink:0;}
+.dot.run{background:var(--ok);}.dot.stop{background:var(--danger);}.dot.wait{background:var(--warn);}
+.tabs{display:flex;gap:4px;margin-bottom:10px;}
+.tab{flex:1;padding:8px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;
+  font-size:12px;font-weight:700;color:var(--txt2);cursor:pointer;text-align:center;}
+.tab.act{background:var(--acc);color:#fff;border-color:var(--acc);}
+.lib-box{background:#13100a;border:1px solid var(--warn);border-left:4px solid var(--warn);
+  border-radius:6px;padding:9px 12px;font-size:12px;color:#ffd54f;margin-bottom:10px;}
+.loading-box{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;
+  padding:20px;text-align:center;color:var(--txt2);font-size:13px;margin-bottom:10px;}
+.error-box{background:#1a0000;border:1px solid var(--danger);border-left:4px solid var(--danger);
+  border-radius:6px;padding:12px;font-size:12px;color:#ff8a80;margin-bottom:10px;display:none;}
+/* Forzar texto blanco en toolbox y flyout de Blockly */
+.blocklyTreeLabel{color:#ffffff !important;font-size:13px !important;font-weight:600 !important;}
+.blocklyTreeRow:hover .blocklyTreeLabel{color:#ffcc80 !important;}
+.blocklyTreeSelected .blocklyTreeLabel{color:#ffcc80 !important;}
+.blocklyFlyoutLabelText{fill:#ffffff !important;}
+.blocklyToolboxDiv{background:#16213e !important;}
+.blocklyFlyout{background-color:#1e2a45 !important;}
+</style>
+</head>
+<body>
+<div class="tb">
+  <img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Programacion con Bloques</div></div>
+  <div class="bdg" id="bdg">EDITOR</div>
+</div>
+<div class="wrap">
+
+<div class="prog-bar">
+  <div class="dot" id="dot"></div>
+  <span id="st-txt">Cargando editor...</span>
+  <span style="margin-left:auto;color:var(--txt2)" id="blk-cnt">0 bloques</span>
+</div>
+
+<div class="error-box" id="error-box">
+  <b>Error al cargar Blockly</b><br>
+  <span id="error-msg"></span><br><br>
+  Verificar que los archivos de Blockly esten en la carpeta <b>data/</b> (raiz) y
+  que se hayan subido correctamente con ESP32 Sketch Data Upload.
+</div>
+
+<div class="lib-box" id="lib-warn" style="display:none">
+  <b>Librerias requeridas para bloques marcados con *:</b><br>
+  <span id="lib-list"></span><br>
+  Instalar: Herramientas &rarr; Administrar Bibliotecas
+</div>
+
+<div class="tabs">
+  <div class="tab act" id="t1" onclick="showTab(1)">Editor</div>
+  <div class="tab" id="t2" onclick="showTab(2)">Codigo C++</div>
+  <div class="tab" id="t3" onclick="showTab(3)">Instrucciones</div>
+</div>
+
+<div id="pnl1">
+  <div id="bly-wrap">
+    <div id="bly-div">
+      <div class="loading-box" id="loading-msg">
+        Cargando Blockly desde SPIFFS...<br>
+        <small style="color:var(--txt2)">Primera carga puede tardar unos segundos</small>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="pnl2" style="display:none">
+  <div class="code-out" id="code-out">// Agrega bloques para ver el codigo C++
+void setup() { }
+void loop() { }</div>
+</div>
+<div id="pnl3" style="display:none">
+  <div class="card">
+    <div class="ct">Instrucciones enviadas al ESP32</div>
+    <div class="code-out" id="inst-out">// Sin instrucciones</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ct">Controles</div>
+  <div class="row">
+    <button class="bo" id="btn-run" onclick="toggleRun()">&#9654; Ejecutar</button>
+    <button class="bd" onclick="clearWs()">&#128465; Limpiar</button>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <button class="bg" onclick="btnEjemplo('vayvuelve',this)">Ej: Va y vuelve</button>
+    <button class="bg" onclick="btnEjemplo('evasion',this)">Ej: Evasion</button>
+    <button class="bg" onclick="btnSaveXml(this)">&#128190; XML</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ct">Sensores en Vivo</div>
+  <div class="st"><span class="sl">ADC0 (GPIO0)</span>
+    <div style="flex:1;margin-left:10px">
+      <div style="display:flex;justify-content:space-between">
+        <span class="sv" id="a0">-</span>
+        <span id="a0p" style="color:var(--txt2)">-</span>
+      </div>
+      <div class="bar"><div class="barf" id="a0b" style="width:0%"></div></div>
+    </div>
+  </div>
+  <div class="st"><span class="sl">ADC1 (GPIO1)</span>
+    <div style="flex:1;margin-left:10px">
+      <div style="display:flex;justify-content:space-between">
+        <span class="sv" id="a1">-</span>
+        <span id="a1p" style="color:var(--txt2)">-</span>
+      </div>
+      <div class="bar"><div class="barf" id="a1b" style="width:0%"></div></div>
+    </div>
+  </div>
+  <div class="st"><span class="sl">Start (GPIO9)</span><span class="sv" id="btn2">-</span></div>
+  <div class="st"><span class="sl">Temp DHT22</span><span class="sv" id="tmp2">-</span></div>
+</div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<!-- Cargar Blockly desde SPIFFS (rutas locales) -->
+<script>
+var BLOCKLY_LOADED = false;
+var workspace = null;
+
+function showError(msg) {
+  var eb = document.getElementById("error-box");
+  var em = document.getElementById("error-msg");
+  if(eb) eb.style.display = "block";
+  if(em) em.textContent = msg;
+  document.getElementById("loading-msg") && (document.getElementById("loading-msg").style.display="none");
+  setStatus("Error al cargar Blockly — ver instrucciones abajo","stop");
+}
+
+function loadScript(src, cb) {
+  var s = document.createElement("script");
+  s.src = resolveUrl(src);
+  s.onload = cb;
+  s.onerror = function() { showError("No se pudo cargar: " + src); };
+  document.head.appendChild(s);
+}
+
+// Cargar Blockly en cadena desde SPIFFS
+// Intentar cargar Blockly — prueba rutas en orden hasta encontrar la correcta
+// Carga secuencial simple y robusta
+// Los archivos se sirven como .gz con Content-Encoding: gzip
+// blockly_compressed.js dividido en 5 partes para poder subir a SPIFFS
+// El browser las carga secuencialmente — es transparente, funciona igual
+var BLY_CHUNKS = ["/bly_core_1.js","/bly_core_2.js","/bly_core_3.js","/bly_core_4.js","/bly_core_5.js"];
+var BLY_OTHERS = ["/bly_blocks.js","/bly_js.js","/bly_msg.js"];
+var blyIdx = 0;
+
+function updLoad(msg) {
+  setStatus(msg, "wait");
+  var ld = document.getElementById("load-detail");
+  if (ld) ld.textContent = msg;
+}
+
+function loadOthers(idx) {
+  if (idx >= BLY_OTHERS.length) {
+    setTimeout(function() {
+      if (typeof Blockly !== "undefined") { BLOCKLY_LOADED = true; initBlockly(); }
+      else { showError("Blockly no definido tras carga."); }
+    }, 300);
+    return;
+  }
+  var src = BLY_OTHERS[idx];
+  updLoad("Cargando " + src.replace("/","") + "...");
+  var s = document.createElement("script");
+  s.src = resolveUrl(src) + "?v=6";
+  s.onload = function() { loadOthers(idx+1); };
+  s.onerror = function() { showError("Error cargando: " + src); };
+  document.head.appendChild(s);
+}
+
+function fetchChunks() {
+  var total = BLY_CHUNKS.length, texts = new Array(total), done = 0, failed = false;
+  BLY_CHUNKS.forEach(function(url, i) {
+    fetch(url + "?v=6")
+      .then(function(r) { if (!r.ok) throw new Error("HTTP "+r.status); return r.text(); })
+      .then(function(txt) {
+        texts[i] = txt; done++;
+        updLoad("Chunk " + done + "/" + total + " OK");
+        if (done === total) {
+          updLoad("Ejecutando core...");
+          try { (new Function(texts.join("")))(); updLoad("Core OK"); loadOthers(0); }
+          catch(e) { showError("Error core: " + e.message); }
+        }
+      })
+      .catch(function(e) { if (!failed) { failed=true; showError("Fetch error: "+e.message); } });
+  });
+}
+fetchChunks();
+</script>
+
+<script>
+FRANKY_BASE.rewriteDom();
+// ── Opcodes ──────────────────────────────────────────
+var OP = {
+  FIN:0, ADE:1, ATR:2, IZQ:3, DER:4, STOP:5, ESP:6,
+  LED_ON:7, LED_OFF:8, IF_DIST:9, FRENO:11,
+  DOUT:20, PWM_OUT:22, ADC_READ:30, SERVO:40,
+  VAR_SET:60, VAR_ADD:61, VAR_SUB:62,
+  IF_GT:70, IF_LT:71, REPEAT:74,
+  // Extensión de FRANKY LAB (Fase 3) — NO existen todavía en el firmware
+  // físico. JMP es lo que permite corregir el bug real de f_if_gt/f_if_lt
+  // (antes solo condicionaban la primera instrucción del cuerpo) y hacer
+  // funcionar f_while_gt de verdad. Ver informe de evolución de Fase 3
+  // para las modificaciones necesarias en el firmware oficial.
+  JMP:91,
+  PUSH:90,
+  OLED_INIT:101, OLED_CLEAR:102, OLED_CURSOR:103, OLED_PRINT:104,
+  OLED_LINE:105, OLED_RECT:106, OLED_CIRCLE:107, OLED_DISPLAY:108,
+  SERIAL_PRINT:122,
+  BUZZER:123
+};
+
+function mkPinOpts() {
+  return [
+    ["GPIO0 — ADC0","0"],["GPIO1 — ADC1","1"],
+    ["GPIO9 — Start","9"],["GPIO6 — SDA (I2C off)","6"],
+    ["GPIO7 — SCL (I2C off)","7"],["GPIO10 — CS (SPI off)","10"],
+    ["GPIO20 — SCLK (SPI off)","20"],["GPIO21 — MOSI (SPI off)","21"]
+  ];
+}
+
+// ── Toolbox ───────────────────────────────────────────
+var TOOLBOX = `<xml xmlns="https://developers.google.com/blockly/xml">
+<category name="Motores" colour="#e05a00">
+  <block type="f_adelante"><field name="VEL">200</field></block>
+  <block type="f_atras"><field name="VEL">200</field></block>
+  <block type="f_izq"><field name="VEL">180</field></block>
+  <block type="f_der"><field name="VEL">180</field></block>
+  <block type="f_stop"></block>
+  <block type="f_freno"></block>
+  <block type="f_pwm_motor"><field name="CH">A</field><field name="DUTY">200</field></block>
+</category>
+<category name="Servo" colour="#ff7043">
+  <block type="f_servo"><field name="GPIO">3</field><field name="ANG">90</field></block>
+  <block type="f_servo_sweep"><field name="GPIO">3</field><field name="A1">0</field><field name="A2">180</field><field name="VEL">5</field></block>
+</category>
+<category name="GPIO / Salidas" colour="#ff9800">
+  <block type="f_dout"><field name="VAL">HIGH</field></block>
+  <block type="f_pwm_out"><field name="FREQ">1000</field><field name="DUTY">128</field></block>
+  <block type="f_led_on"></block>
+  <block type="f_led_off"></block>
+</category>
+<category name="Sensores" colour="#00897b">
+  <block type="f_adc"><field name="N">1</field></block>
+  <block type="f_din"></block>
+  <block type="f_ultrasonic"></block>
+  <block type="f_dht_temp"></block>
+  <block type="f_dht_hum"></block>
+  <block type="f_millis"></block>
+</category>
+<category name="PID *" colour="#ad1457">
+  <block type="f_pid_set"><field name="KP">2.0</field><field name="KI">0.5</field><field name="KD">1.0</field></block>
+  <block type="f_pid_start"><field name="SP">0</field></block>
+  <block type="f_pid_stop"></block>
+</category>
+<category name="Buzzer *" colour="#37474f">
+  <block type="f_buzzer"><field name="FREQ">440</field><field name="DUR">200</field></block>
+</category>
+<category name="MCP3208 / QTR8A *" colour="#4527a0">
+  <block type="f_mcp3208_read"></block>
+  <block type="f_qtr8a_read"></block>
+</category>
+<category name="OLED I2C *" colour="#6a1b9a">
+  <block type="f_oled_clear"></block>
+  <block type="f_oled_text"><field name="COL">0</field><field name="FILA">0</field><field name="TXT">Hola</field></block>
+  <block type="f_oled_show"></block>
+</category>
+<category name="Decision" colour="#1565c0">
+  <block type="f_if_gt"><field name="UMBRAL">2000</field></block>
+  <block type="f_if_lt"><field name="UMBRAL">1000</field></block>
+  <block type="controls_if"></block>
+  <block type="logic_compare"></block>
+  <block type="logic_operation"></block>
+  <block type="logic_negate"></block>
+</category>
+<category name="Control" colour="#01579b">
+  <block type="f_repeat"><field name="N">3</field></block>
+  <block type="f_while_gt"><field name="UMBRAL">2000</field></block>
+  <block type="controls_repeat_ext"><value name="TIMES"><block type="math_number"><field name="NUM">5</field></block></value></block>
+  <block type="controls_whileUntil"></block>
+</category>
+<category name="Variables" colour="#2e7d32">
+  <block type="f_var_set"><field name="VAR">contador</field><field name="VAL">0</field></block>
+  <block type="f_var_add"><field name="VAR">contador</field><field name="VAL">1</field></block>
+  <block type="variables_get"></block>
+  <block type="variables_set"></block>
+</category>
+<category name="Matematicas" colour="#388e3c">
+  <block type="f_map"></block>
+  <block type="f_constrain"><field name="MIN">0</field><field name="MAX">255</field></block>
+  <block type="math_arithmetic"></block>
+  <block type="math_number"></block>
+  <block type="math_single"></block>
+</category>
+<category name="Tiempo" colour="#f57f17">
+  <block type="f_esperar"><field name="MS">500</field></block>
+  <block type="f_esperar_us"><field name="US">100</field></block>
+</category>
+<category name="Serial" colour="#546e7a">
+  <block type="f_serial_print"><field name="MSG">Hola Franky</field></block>
+</category>
+</xml>`;
+
+// ── Definicion de bloques ─────────────────────────────
+function defBlocks() {
+  Blockly.defineBlocksWithJsonArray([
+    // Motores
+    {type:"f_adelante",message0:"Adelante vel %1",args0:[{type:"field_number",name:"VEL",value:200,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#e05a00"},
+    {type:"f_atras",message0:"Atras vel %1",args0:[{type:"field_number",name:"VEL",value:200,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#c62828"},
+    {type:"f_izq",message0:"Girar izquierda vel %1",args0:[{type:"field_number",name:"VEL",value:180,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
+    {type:"f_der",message0:"Girar derecha vel %1",args0:[{type:"field_number",name:"VEL",value:180,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
+    {type:"f_stop",message0:"Parar motores",previousStatement:null,nextStatement:null,colour:"#616161"},
+    {type:"f_freno",message0:"Freno activo",previousStatement:null,nextStatement:null,colour:"#b71c1c"},
+    {type:"f_pwm_motor",message0:"PWM motor %1 duty %2",args0:[{type:"field_dropdown",name:"CH",options:[["A","A"],["B","B"],["A+B","AB"]]},{type:"field_number",name:"DUTY",value:200,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#e65100"},
+    // Servo
+    {type:"f_servo",message0:"Servo GPIO %1 angulo %2 deg",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()},{type:"field_number",name:"ANG",value:90,min:0,max:180}],previousStatement:null,nextStatement:null,colour:"#ff7043",tooltip:"Requiere ESP32Servo *"},
+    {type:"f_servo_sweep",message0:"Servo GPIO %1 de %2 a %3 paso %4",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()},{type:"field_number",name:"A1",value:0},{type:"field_number",name:"A2",value:180},{type:"field_number",name:"VEL",value:5}],previousStatement:null,nextStatement:null,colour:"#ff7043"},
+    // GPIO
+    {type:"f_dout",message0:"GPIO %1 digital %2",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()},{type:"field_dropdown",name:"VAL",options:[["HIGH","HIGH"],["LOW","LOW"]]}],previousStatement:null,nextStatement:null,colour:"#ff9800"},
+    {type:"f_pwm_out",message0:"PWM GPIO %1 freq %2 Hz duty %3",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()},{type:"field_number",name:"FREQ",value:1000},{type:"field_number",name:"DUTY",value:128,min:0,max:255}],previousStatement:null,nextStatement:null,colour:"#f57c00"},
+    {type:"f_led_on",message0:"LED encender (GPIO8)",previousStatement:null,nextStatement:null,colour:"#fdd835"},
+    {type:"f_led_off",message0:"LED apagar (GPIO8)",previousStatement:null,nextStatement:null,colour:"#fdd835"},
+    // Sensores
+    {type:"f_adc",message0:"Leer ADC %1 prom %2",args0:[{type:"field_dropdown",name:"GPIO",options:[["GPIO0","0"],["GPIO1","1"]]},{type:"field_number",name:"N",value:1,min:1,max:16}],output:"Number",colour:"#00897b"},
+    {type:"f_din",message0:"Leer digital %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Boolean",colour:"#00897b"},
+    {type:"f_ultrasonic",message0:"Sonar TRIG %1 ECHO %2 (cm)",args0:[{type:"field_dropdown",name:"TRIG",options:mkPinOpts()},{type:"field_dropdown",name:"ECHO",options:mkPinOpts()}],output:"Number",colour:"#00838f",tooltip:"Requiere NewPing"},
+    {type:"f_dht_temp",message0:"DHT22 temperatura GPIO %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Number",colour:"#00796b"},
+    {type:"f_dht_hum",message0:"DHT22 humedad GPIO %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Number",colour:"#00796b"},
+    {type:"f_millis",message0:"millis()",output:"Number",colour:"#f57f17"},
+    // PID (solo C++)
+    {type:"f_pid_set",message0:"* PID Kp %1 Ki %2 Kd %3",args0:[{type:"field_number",name:"KP",value:2.0},{type:"field_number",name:"KI",value:0.5},{type:"field_number",name:"KD",value:1.0}],previousStatement:null,nextStatement:null,colour:"#ad1457",tooltip:"Solo codigo C++ — instalar PID Library"},
+    {type:"f_pid_start",message0:"* PID iniciar setpoint %1",args0:[{type:"field_number",name:"SP",value:0}],previousStatement:null,nextStatement:null,colour:"#ad1457"},
+    {type:"f_pid_stop",message0:"* PID detener",previousStatement:null,nextStatement:null,colour:"#c2185b"},
+    // Buzzer (opcode real del Laboratorio — no existe pin en el firmware físico todavía)
+    {type:"f_buzzer",message0:"Buzzer* frecuencia %1 Hz duración %2 ms",args0:[{type:"field_number",name:"FREQ",value:440,min:20,max:20000},{type:"field_number",name:"DUR",value:200,min:1}],previousStatement:null,nextStatement:null,colour:"#37474f",tooltip:"Simulado en el Laboratorio (opcode 123) — el firmware físico todavía no tiene buzzer"},
+    // MCP3208 / QTR8A (solo C++ — sin simulación en el Laboratorio todavía, ver informe de migración)
+    {type:"f_mcp3208_read",message0:"* MCP3208 canal %1 (SPI) → variable",args0:[{type:"field_dropdown",name:"CH",options:[["0","0"],["1","1"],["2","2"],["3","3"],["4","4"],["5","5"],["6","6"],["7","7"]]}],previousStatement:null,nextStatement:null,colour:"#4527a0",tooltip:"Solo codigo C++ — requiere MCP3208 por SPI, no simulado todavía en el Laboratorio"},
+    {type:"f_qtr8a_read",message0:"* QTR-8A posición de línea (vía MCP3208) → variable",previousStatement:null,nextStatement:null,colour:"#512da8",tooltip:"Solo codigo C++ — requiere QTR-8A + MCP3208, no simulado todavía en el Laboratorio"},
+    // OLED (solo C++)
+    {type:"f_oled_clear",message0:"* OLED limpiar",previousStatement:null,nextStatement:null,colour:"#6a1b9a",tooltip:"Solo codigo C++ — instalar Adafruit SSD1306"},
+    {type:"f_oled_text",message0:"* OLED texto col %1 fila %2 texto %3",args0:[{type:"field_number",name:"COL",value:0},{type:"field_number",name:"FILA",value:0},{type:"field_input",name:"TXT",text:"Hola"}],previousStatement:null,nextStatement:null,colour:"#6a1b9a"},
+    {type:"f_oled_show",message0:"* OLED mostrar",previousStatement:null,nextStatement:null,colour:"#6a1b9a"},
+    // Decision
+    {type:"f_if_gt",message0:"Si ADC0 > %1 entonces",args0:[{type:"field_number",name:"UMBRAL",value:2000}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
+    {type:"f_if_lt",message0:"Si ADC0 < %1 entonces",args0:[{type:"field_number",name:"UMBRAL",value:1000}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
+    // Control
+    {type:"f_repeat",message0:"Repetir %1 veces",args0:[{type:"field_number",name:"N",value:3,min:1,max:100}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#01579b"},
+    {type:"f_while_gt",message0:"Mientras ADC0 > %1",args0:[{type:"field_number",name:"UMBRAL",value:500}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#0277bd"},
+    // Variables
+    {type:"f_var_set",message0:"Variable %1 = %2",args0:[{type:"field_input",name:"VAR",text:"mi_var"},{type:"field_number",name:"VAL",value:0}],previousStatement:null,nextStatement:null,colour:"#2e7d32"},
+    {type:"f_var_add",message0:"Variable %1 += %2",args0:[{type:"field_input",name:"VAR",text:"mi_var"},{type:"field_number",name:"VAL",value:1}],previousStatement:null,nextStatement:null,colour:"#388e3c"},
+    // Math
+    {type:"f_map",message0:"map ADC0 [0..4095] a [0..255]",output:"Number",colour:"#388e3c"},
+    {type:"f_constrain",message0:"constrain %1 entre %2 y %3",args0:[{type:"input_value",name:"VAL",check:"Number"},{type:"field_number",name:"MIN",value:0},{type:"field_number",name:"MAX",value:255}],output:"Number",colour:"#2e7d32"},
+    // Tiempo
+    {type:"f_esperar",message0:"Esperar %1 ms",args0:[{type:"field_number",name:"MS",value:500,min:1}],previousStatement:null,nextStatement:null,colour:"#f57f17"},
+    {type:"f_esperar_us",message0:"Esperar %1 us",args0:[{type:"field_number",name:"US",value:100,min:1}],previousStatement:null,nextStatement:null,colour:"#e65100"},
+    // Serial
+    {type:"f_serial_print",message0:"Serial println %1",args0:[{type:"field_input",name:"MSG",text:"Hola"}],previousStatement:null,nextStatement:null,colour:"#546e7a"}
+  ]);
+}
+
+// ── Generadores C++ ───────────────────────────────────
+function defGenerators() {
+  // Compatibilidad: API moderna (forBlock) y API vieja (G["..."]) simultaneamente
+  var G = Blockly.JavaScript;
+  var FB = (G && G.forBlock) ? G.forBlock : null;
+  var n = "\n";
+
+  function reg(type, fn) {
+    if (FB) FB[type] = fn;       // API moderna Blockly v9+
+    if (G)  G[type]  = fn;       // API vieja (fallback)
+  }
+
+  reg("f_adelante",   function(b) { return 'move("f",' + b.getFieldValue("VEL") + ');' + n; });
+  reg("f_atras",      function(b) { return 'move("b",' + b.getFieldValue("VEL") + ');' + n; });
+  reg("f_izq",        function(b) { return 'move("l",' + b.getFieldValue("VEL") + ');' + n; });
+  reg("f_der",        function(b) { return 'move("r",' + b.getFieldValue("VEL") + ');' + n; });
+  reg("f_stop",       function(b) { return 'stopMotors();' + n; });
+  reg("f_freno",      function(b) { return 'ledcWrite(CH_A1,255);ledcWrite(CH_A2,255);ledcWrite(CH_B1,255);ledcWrite(CH_B2,255);' + n; });
+  reg("f_pwm_motor",  function(b) {
+    var ch = b.getFieldValue("CH"), d = b.getFieldValue("DUTY");
+    if (ch === "A")  return 'ledcWrite(CH_A1,' + d + ');ledcWrite(CH_A2,0);' + n;
+    if (ch === "B")  return 'ledcWrite(CH_B1,' + d + ');ledcWrite(CH_B2,0);' + n;
+    return 'ledcWrite(CH_A1,' + d + ');ledcWrite(CH_B1,' + d + ');' + n;
+  });
+  reg("f_servo",      function(b) { return 'servo' + b.getFieldValue("GPIO") + '.write(' + b.getFieldValue("ANG") + ');' + n; });
+  reg("f_servo_sweep",function(b) { return 'for(int _a=' + b.getFieldValue("A1") + ';_a<=' + b.getFieldValue("A2") + ';_a+=' + b.getFieldValue("VEL") + '){servo' + b.getFieldValue("GPIO") + '.write(_a);delay(15);}' + n; });
+  reg("f_dout",       function(b) {
+    var gpio = b.getFieldValue("GPIO");
+    var val  = b.getFieldValue("VAL"); // "HIGH" o "LOW"
+    return 'pinMode(' + gpio + ',OUTPUT);digitalWrite(' + gpio + ',' + val + ');' + n;
+  });
+  reg("f_pwm_out",    function(b) { return 'ledcSetup(8,' + b.getFieldValue("FREQ") + ',8);ledcAttachPin(' + b.getFieldValue("GPIO") + ',8);ledcWrite(8,' + b.getFieldValue("DUTY") + ');' + n; });
+  reg("f_led_on",     function(b) { return 'digitalWrite(PIN_LED,LOW);' + n; });
+  reg("f_led_off",    function(b) { return 'digitalWrite(PIN_LED,HIGH);' + n; });
+  reg("f_adc",        function(b) { return ['analogRead(' + b.getFieldValue("GPIO") + ')', 0]; });
+  reg("f_din",        function(b) { return ['digitalRead(' + b.getFieldValue("GPIO") + ')', 0]; });
+  reg("f_ultrasonic", function(b) { return ['([&](){NewPing _s(' + b.getFieldValue("TRIG") + ',' + b.getFieldValue("ECHO") + ',400);return(int)_s.ping_cm();})()', 0]; });
+  reg("f_dht_temp",   function(b) { return ['dht.readTemperature()', 0]; });
+  reg("f_dht_hum",    function(b) { return ['dht.readHumidity()', 0]; });
+  reg("f_millis",     function(b) { return ['millis()', 0]; });
+  reg("f_pid_set",    function(b) { return 'double _kp=' + b.getFieldValue("KP") + ',_ki=' + b.getFieldValue("KI") + ',_kd=' + b.getFieldValue("KD") + ';' + n; });
+  reg("f_pid_start",  function(b) { return 'double _sp=' + b.getFieldValue("SP") + ',_in,_out;' + n + 'PID _pid(&_in,&_out,&_sp,_kp,_ki,_kd,DIRECT);' + n + '_pid.SetMode(AUTOMATIC);' + n; });
+  reg("f_pid_stop",   function(b) { return '_pid.SetMode(MANUAL);' + n; });
+  reg("f_buzzer",     function(b) { return 'tone(PIN_BUZZER, ' + b.getFieldValue("FREQ") + ', ' + b.getFieldValue("DUR") + '); // *requiere PIN_BUZZER definido' + n; });
+  reg("f_mcp3208_read", function(b) { return 'varGlobal = mcp3208.readChannel(' + b.getFieldValue("CH") + '); // *requiere libreria MCP3208 por SPI' + n; });
+  reg("f_qtr8a_read", function(b) { return 'varGlobal = qtr.readLinePosition(); // *requiere QTR8A::begin() en setup()' + n; });
+  reg("f_oled_clear", function(b) { return 'display.clearDisplay();' + n; });
+  reg("f_oled_text",  function(b) { return 'display.setCursor(' + b.getFieldValue("COL") * 6 + ',' + b.getFieldValue("FILA") * 8 + ');display.print("' + b.getFieldValue("TXT") + '");' + n; });
+  reg("f_oled_show",  function(b) { return 'display.display();' + n; });
+  reg("f_if_gt",      function(b) { var c = G.statementToCode(b, "DO"); return 'if(analogRead(PIN_ADC0)>' + b.getFieldValue("UMBRAL") + '){' + n + c + '}' + n; });
+  reg("f_if_lt",      function(b) { var c = G.statementToCode(b, "DO"); return 'if(analogRead(PIN_ADC0)<' + b.getFieldValue("UMBRAL") + '){' + n + c + '}' + n; });
+  reg("f_repeat",     function(b) { var c = G.statementToCode(b, "DO"); return 'for(int _i=0;_i<' + b.getFieldValue("N") + ';_i++){' + n + c + '}' + n; });
+  reg("f_while_gt",   function(b) { var c = G.statementToCode(b, "DO"); return 'while(analogRead(PIN_ADC0)>' + b.getFieldValue("UMBRAL") + '){' + n + c + 'delay(10);' + n + '}' + n; });
+  reg("f_var_set",    function(b) { return 'static float ' + b.getFieldValue("VAR") + '=0;' + n + b.getFieldValue("VAR") + '=' + b.getFieldValue("VAL") + ';' + n; });
+  reg("f_var_add",    function(b) { return b.getFieldValue("VAR") + '+=' + b.getFieldValue("VAL") + ';' + n; });
+  reg("f_map",        function(b) { return ['map(analogRead(PIN_ADC0),0,4095,0,255)', 0]; });
+  reg("f_constrain",  function(b) { var v = G.valueToCode(b, "VAL", 0) || "0"; return ['constrain(' + v + ',' + b.getFieldValue("MIN") + ',' + b.getFieldValue("MAX") + ')', 0]; });
+  reg("f_esperar",    function(b) { return 'delay(' + b.getFieldValue("MS") + ');' + n; });
+  reg("f_esperar_us", function(b) { return 'delayMicroseconds(' + b.getFieldValue("US") + ');' + n; });
+  reg("f_serial_print",function(b){ return 'Serial.println("' + b.getFieldValue("MSG") + '");' + n; });
+}
+
+// ── Traducir a instrucciones ESP32 ────────────────────
+function wsToInstructions() {
+  var insts=[];
+  workspace.getTopBlocks(true).forEach(b=>parseBlock(b,insts));
+  if(insts.length>0) insts.push({op:OP.FIN,val:0});
+  return insts;
+}
+// ── FIX (Fase 3): antes, "si ADC0>umbral entonces [A,B,C]" solo
+// condicionaba A — B y C se ejecutaban siempre, sin importar el sensor.
+// El primitivo real (IF_GT/IF_LT) solo puede "saltear la instrucción
+// siguiente" — para condicionar un cuerpo de cualquier tamaño se arma el
+// patrón [COND][JMP-si-falso-al-final][CUERPO], con la condición DIRECTA
+// (no invertida): verdadera -> saltea el JMP y cae en el cuerpo; falsa ->
+// ejecuta el JMP y se salta el cuerpo entero. Usa OP.JMP (91), extensión
+// de Laboratorio — ver informe de evolución para el cambio de firmware.
+function compileIf(b, op, insts) {
+  insts.push({op:op, val:+b.getFieldValue("UMBRAL")});
+  var jmpIdx = insts.length;
+  insts.push({op:OP.JMP, val:0}); // placeholder, se completa abajo
+  var db = b.getInputTargetBlock("DO");
+  if (db) parseBlock(db, insts);
+  insts[jmpIdx] = {op:OP.JMP, val:insts.length};
+}
+// "Mientras ADC0>umbral": antes NO tenía case en parseBlock -> el bloque
+// se ignoraba por completo al traducir a instrucciones reales (aunque el
+// código C++ generado sí lo mostraba correctamente). Bucle real estilo
+// do-while: ejecuta el cuerpo, chequea al final, vuelve si corresponde.
+function compileWhile(b, opExit, insts) {
+  var startIdx = insts.length;
+  var db = b.getInputTargetBlock("DO");
+  if (db) parseBlock(db, insts);
+  insts.push({op:opExit, val:+b.getFieldValue("UMBRAL")}); // si ya NO se cumple la condición, saltea el JMP de vuelta (sale)
+  insts.push({op:OP.JMP, val:startIdx}); // si sigue cumpliéndose, vuelve a repetir el cuerpo
+}
+function parseBlock(b,insts){
+  if(!b||insts.length>=60) return;
+  switch(b.type){
+    case "f_adelante": insts.push({op:OP.ADE,val:+b.getFieldValue("VEL")}); break;
+    case "f_atras":    insts.push({op:OP.ATR,val:+b.getFieldValue("VEL")}); break;
+    case "f_izq":      insts.push({op:OP.IZQ,val:+b.getFieldValue("VEL")}); break;
+    case "f_der":      insts.push({op:OP.DER,val:+b.getFieldValue("VEL")}); break;
+    case "f_stop":     insts.push({op:OP.STOP,val:0}); break;
+    case "f_freno":    insts.push({op:OP.FRENO,val:0}); break;
+    case "f_esperar":  insts.push({op:OP.ESP,val:+b.getFieldValue("MS")}); break;
+    case "f_led_on":   insts.push({op:OP.LED_ON,val:0}); break;
+    case "f_led_off":  insts.push({op:OP.LED_OFF,val:0}); break;
+    case "f_dout":     insts.push({op:OP.DOUT,val:+b.getFieldValue("GPIO")*10+(b.getFieldValue("VAL")==="HIGH"?1:0)}); break;
+    case "f_servo":    insts.push({op:OP.SERVO,val:(+b.getFieldValue("GPIO"))*1000+(+b.getFieldValue("ANG"))}); break;
+    case "f_var_set":  insts.push({op:OP.VAR_SET,val:+b.getFieldValue("VAL")}); break;
+    case "f_var_add":  insts.push({op:OP.VAR_ADD,val:+b.getFieldValue("VAL")}); break;
+    case "f_if_gt":    { compileIf(b, OP.IF_GT, insts); break; }
+    case "f_if_lt":    { compileIf(b, OP.IF_LT, insts); break; }
+    case "f_while_gt": { compileWhile(b, OP.IF_LT, insts); break; } // antes: NO existía este case -> el bloque se ignoraba en silencio al "Ejecutar"
+    case "f_repeat":   { var n=Math.min(+b.getFieldValue("N"), 60-insts.length); var db=b.getInputTargetBlock("DO"); for(var i=0;i<n;i++) if(db)parseBlock(db,insts); break; }
+    // FIX (cierre de Fase 3): estos bloques generaban SOLO código C++ —
+    // ejecutados en el Laboratorio ("Ejecutar") no hacían nada (caían en
+    // el "default" de abajo), a pesar de que el Firmware Runtime del
+    // Laboratorio ya soporta estos opcodes desde una sesión anterior.
+    case "f_oled_clear": insts.push({op:OP.OLED_INIT,val:0}); insts.push({op:OP.OLED_CLEAR,val:0}); break;
+    case "f_oled_text":
+      insts.push({op:OP.PUSH,val:+b.getFieldValue("COL")*6});
+      insts.push({op:OP.PUSH,val:+b.getFieldValue("FILA")*8});
+      insts.push({op:OP.OLED_CURSOR,val:0});
+      insts.push({op:OP.OLED_PRINT,val:0,txt:b.getFieldValue("TXT")});
+      break;
+    case "f_oled_show": insts.push({op:OP.OLED_DISPLAY,val:0}); break;
+    case "f_serial_print": insts.push({op:OP.SERIAL_PRINT,val:0,txt:b.getFieldValue("MSG")}); break;
+    case "f_buzzer":
+      insts.push({op:OP.PUSH,val:+b.getFieldValue("FREQ")});
+      insts.push({op:OP.PUSH,val:+b.getFieldValue("DUR")});
+      insts.push({op:OP.BUZZER,val:0});
+      break;
+    case "controls_repeat_ext": { var tv=b.getInputTargetBlock("TIMES"); var n=tv&&tv.type==="math_number"?Math.min(+tv.getFieldValue("NUM"),60-insts.length):3; var db=b.getInputTargetBlock("DO"); for(var i=0;i<n;i++) if(db)parseBlock(db,insts); break; }
+    default: break;
+  }
+  var next=b.getNextBlock(); if(next)parseBlock(next,insts);
+}
+
+// ── Actualizar codigo C++ ─────────────────────────────
+var _updateTimer=null;
+function updateCode(){
+  if(!workspace) return;
+  // Debounce: esperar 150ms para que Blockly termine de renderizar
+  clearTimeout(_updateTimer);
+  _updateTimer=setTimeout(function(){_doUpdateCode();},150);
+}
+function _doUpdateCode(){
+  if(!workspace) return;
+  try {
+    // API moderna: workspaceToCode esta en el objeto generador directamente
+    var gen = Blockly.JavaScript;
+    var code = "";
+    try { code = gen.workspaceToCode(workspace); } catch(e2) { console.warn("gen error:", e2.message); }
+    var all=workspace.getAllBlocks(false);
+    // Contar todos los bloques Franky (f_) mas los estandares de Blockly en uso
+    var cnt=all.filter(function(b){
+      return b.type.startsWith("f_")||
+             b.type==="controls_if"||b.type==="controls_repeat_ext"||
+             b.type==="controls_whileUntil"||b.type==="logic_compare"||
+             b.type==="logic_operation"||b.type==="logic_negate"||
+             b.type==="math_arithmetic"||b.type==="math_number"||
+             b.type==="math_single"||b.type==="variables_get"||
+             b.type==="variables_set";
+    }).length;
+    document.getElementById("blk-cnt").textContent=cnt+" bloques";
+    var libs=new Set();
+    all.forEach(function(b){
+      if(b.type==="f_servo"||b.type==="f_servo_sweep") libs.add("ESP32Servo");
+      if(b.type==="f_ultrasonic") libs.add("NewPing");
+      if(b.type==="f_dht_temp"||b.type==="f_dht_hum") libs.add("DHT sensor library");
+      if(b.type.startsWith("f_oled")) libs.add("Adafruit SSD1306 + GFX");
+      if(b.type.startsWith("f_pid")) libs.add("PID Library (br3ttb)");
+    });
+    var lw=document.getElementById("lib-warn");
+    var ll=document.getElementById("lib-list");
+    if(libs.size>0){lw.style.display="block";ll.textContent=[...libs].join(" | ");}
+    else lw.style.display="none";
+    var nl="\n";
+    var header="// Franky 4.0 -- Codigo generado"+nl+"void loop() {"+nl;
+    var body=code ? code.split(nl).map(function(l){return "  "+l;}).join(nl) : "  // sin instrucciones";
+    var full=header+body+nl+"}";
+    document.getElementById("code-out").textContent=full;
+    var insts=wsToInstructions();
+    var it="["+nl;
+    insts.forEach(function(ins,i){it+="  {op:"+ins.op+", val:"+ins.val+"}"; if(i<insts.length-1)it+=","; it+=nl;});
+    it+="]";
+    document.getElementById("inst-out").textContent=it;
+  } catch(e){ console.warn("updateCode:",e); }
+}
+
+// ── Init Blockly ──────────────────────────────────────
+function initBlockly(){
+  var lm=document.getElementById("loading-msg");
+  if(lm) lm.style.display="none";
+  try {
+    defBlocks();
+    defGenerators();
+    // Tema custom: texto blanco en toolbox para fondo oscuro
+    var frankyTheme = Blockly.Theme.defineTheme('franky', {
+      'base': Blockly.Themes.Classic,
+      'componentStyles': {
+        'workspaceBackgroundColour': '#1a1a2e',
+        'toolboxBackgroundColour': '#16213e',
+        'toolboxForegroundColour': '#ffffff',
+        'flyoutBackgroundColour': '#1e2a45',
+        'flyoutForegroundColour': '#ffffff',
+        'flyoutOpacity': 0.95,
+        'scrollbarColour': '#444',
+        'insertionMarkerColour': '#fff',
+        'insertionMarkerOpacity': 0.3,
+        'scrollbarOpacity': 0.4,
+        'cursorColour': '#d0d0ff'
+      }
+    });
+    workspace=Blockly.inject(document.getElementById("bly-div"),{
+      toolbox:TOOLBOX,scrollbars:true,trashcan:true,
+      zoom:{controls:true,wheel:true,startScale:0.85,maxScale:2.5,minScale:0.3},
+      grid:{spacing:20,length:3,colour:"#2a2a3e",snap:true},
+      theme:frankyTheme,renderer:"geras"
+    });
+    workspace.addChangeListener(function(e){
+      // Ignorar solo eventos de UI puros (scroll, zoom) que no cambian bloques
+      var ignore=[Blockly.Events.VIEWPORT_CHANGE, Blockly.Events.THEME_CHANGE,
+                  Blockly.Events.CLICK, Blockly.Events.SELECTED,
+                  Blockly.Events.TOOLBOX_ITEM_SELECT];
+      if(ignore.indexOf(e.type)!==-1) return;
+      updateCode();
+    });
+    setTimeout(function(){_doUpdateCode();},300);
+    setStatus("Editor listo","ok");
+  } catch(e){
+    showError("initBlockly error: "+e.message);
+  }
+}
+
+// ── Ejecutar en ESP32 ─────────────────────────────────
+var running=false;
+function toggleRun(){
+  if(!workspace){setStatus("Editor no cargado","stop");return;}
+  if(running){
+    fetch("/bloques/stop").then(()=>{
+      running=false;
+      document.getElementById("btn-run").textContent="▶ Ejecutar";
+      document.getElementById("btn-run").className="btn bo";
+      setStatus("Detenido","stop");
+      document.getElementById("bdg").textContent="EDITOR";
+    });
+    return;
+  }
+  var insts=wsToInstructions().filter(i=>!i.cppOnly);
+  if(insts.length<=1){setStatus("Agrega bloques primero","stop");return;}
+  setStatus("Enviando "+insts.length+" instrucciones...","wait");
+  fetch("/bloques/clear")
+    .then(()=>insts.reduce((p,ins)=>p.then(()=>fetch("/bloques/add?op="+ins.op+"&val="+ins.val+(ins.txt!==undefined?"&txt="+encodeURIComponent(ins.txt):"")).then(r=>{if(!r.ok)return r.text().then(t=>{throw new Error(t)});})),Promise.resolve()))
+    .then(()=>fetch("/bloques/run"))
+    .then(()=>{
+      running=true;
+      document.getElementById("btn-run").textContent="■ Detener";
+      document.getElementById("btn-run").className="btn bd";
+      setStatus("Ejecutando — "+(insts.length-1)+" instrucciones","run");
+      document.getElementById("bdg").textContent="EJECUTANDO";
+    }).catch(e=>setStatus("Error: "+e.message,"stop"));
+}
+
+function setStatus(msg,type){
+  document.getElementById("st-txt").textContent=msg;
+  document.getElementById("dot").className="dot "+type;
+}
+function clearWs(){
+  if(!workspace) return;
+  workspace.clear(); fetch("/bloques/clear");
+  setStatus("Limpiado","stop"); running=false;
+  document.getElementById("btn-run").textContent="▶ Ejecutar";
+  document.getElementById("btn-run").className="btn bo";
+  document.getElementById("bdg").textContent="EDITOR";
+  document.getElementById("blk-cnt").textContent="0 bloques";
+  document.getElementById("lib-warn").style.display="none";
+}
+
+var EJEMPLOS={
+  vayvuelve:'<xml><block type="f_adelante" x="20" y="20"><field name="VEL">200</field><next><block type="f_esperar"><field name="MS">500</field><next><block type="f_atras"><field name="VEL">200</field><next><block type="f_esperar"><field name="MS">500</field><next><block type="f_stop"></block></next></block></next></block></next></block></next></block></xml>',
+  evasion:'<xml><block type="f_if_gt" x="20" y="20"><field name="UMBRAL">2500</field><statement name="DO"><block type="f_der"><field name="VEL">180</field><next><block type="f_esperar"><field name="MS">300</field></block></next></block></statement><next><block type="f_adelante"><field name="VEL">180</field><next><block type="f_esperar"><field name="MS">50</field></block></next></block></next></block></xml>'
+};
+function loadEjemplo(k){
+  if(!workspace||!EJEMPLOS[k]) return;
+  Blockly.Xml.clearWorkspaceAndLoadFromXml(Blockly.Xml.textToDom(EJEMPLOS[k]),workspace);
+  setStatus("Ejemplo cargado: "+k,"wait");
+}
+function saveXml(){
+  if(!workspace) return;
+  var txt=Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace));
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/xml"}));
+  a.download="franky_programa.xml"; a.click();
+}
+function _notReady(btn){
+  var orig=btn.textContent;
+  btn.textContent="\u23F3 Cargando Blockly...";
+  btn.disabled=true;
+  setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2000);
+  setStatus("Blockly aun cargando \u2014 espera un momento","err");
+}
+function btnEjemplo(k,btn){
+  if(!workspace||!EJEMPLOS[k]){_notReady(btn);return;}
+  loadEjemplo(k);
+}
+function btnSaveXml(btn){
+  if(!workspace){_notReady(btn);return;}
+  saveXml();
+}
+function showTab(n){
+  [1,2,3].forEach(i=>{
+    document.getElementById("pnl"+i).style.display=i===n?"block":"none";
+    document.getElementById("t"+i).className="tab"+(i===n?" act":"");
+  });
+  if(n===1&&workspace) Blockly.svgResize(workspace);
+  if((n===2||n===3)&&workspace) _doUpdateCode();
+}
+
+// Monitor sensores
+setInterval(()=>{
+  fetch("/api").then(r=>r.json()).then(d=>{
+    var p=Math.round(d.a0/40.95);
+    var e=x=>document.getElementById(x);
+    if(e("a0"))e("a0").textContent=d.a0;
+    if(e("a0p"))e("a0p").textContent=p+"%";
+    if(e("a0b"))e("a0b").style.width=p+"%";
+    p=Math.round(d.a1/40.95);
+    if(e("a1"))e("a1").textContent=d.a1;
+    if(e("a1p"))e("a1p").textContent=p+"%";
+    if(e("a1b"))e("a1b").style.width=p+"%";
+    if(e("btn2"))e("btn2").textContent=d.btn?"LIBRE":"PRES.";
+    if(e("tmp2")&&d.temp)e("tmp2").textContent=d.temp.toFixed(1)+" C";
+  }).catch(()=>{});
+},1000);
+</script>
+</body>
+</html>

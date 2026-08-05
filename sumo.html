@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - SUMO</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+/* ── Tabs modo ── */
+.mode-tabs{display:flex;gap:6px;margin-bottom:0;}
+.mode-tab{flex:1;padding:9px 8px;border:2px solid var(--brd);border-radius:8px;
+  background:var(--bg3);color:var(--txt2);font-size:13px;font-weight:700;
+  cursor:pointer;text-align:center;transition:all .15s;line-height:1.3;}
+.mode-tab.active{border-color:var(--acc);color:var(--acc2);background:var(--bg4);}
+.mode-tab small{display:block;font-weight:400;font-size:10px;color:var(--txt2);}
+.mode-tab.active small{color:var(--acc2);}
+/* ── ADC badge ── */
+.adc-meter{display:flex;align-items:center;gap:8px;margin-top:10px;
+  background:var(--bg3);border-radius:8px;padding:8px 10px;}
+.adc-pips{display:flex;gap:4px;}
+.adc-pip{width:18px;height:18px;border-radius:4px;border:2px solid var(--brd);
+  background:var(--bg4);transition:background .2s,border-color .2s;}
+.adc-pip.used{background:var(--acc);border-color:var(--acc2);}
+.adc-pip.conflict{background:var(--danger);border-color:#ff6b6b;animation:blink .4s infinite;}
+@keyframes blink{50%{opacity:.4;}}
+.adc-label{font-size:11px;color:var(--txt2);flex:1;}
+.adc-count{font-family:monospace;font-size:12px;font-weight:700;}
+/* ── Conflict banner ── */
+.conflict-box{background:#13100a;border:1px solid var(--danger);border-left:4px solid var(--danger);
+  border-radius:6px;padding:8px 12px;font-size:12px;color:#ff8a80;margin:8px 0;display:none;}
+.bus-warn-box{background:#13100a;border:1px solid var(--warn);border-left:4px solid var(--warn);
+  border-radius:6px;padding:8px 12px;font-size:12px;color:#ffd54f;margin:8px 0;display:none;}
+/* ── Sensor config ── */
+.scfg{background:var(--bg3);border-radius:8px;padding:10px;margin:6px 0;}
+.srow{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+.srow:last-child{margin-bottom:0;}
+.srow label{font-size:12px;color:var(--txt2);min-width:126px;flex-shrink:0;}
+.srow select{flex:1;background:var(--bg);border:1px solid var(--brd);
+  color:var(--txt);padding:5px 7px;border-radius:6px;font-size:12px;}
+.ab{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700;flex-shrink:0;}
+.adc-b{background:#00c85322;color:var(--ok);border:1px solid var(--ok);}
+.dig-b{background:#2196F322;color:var(--info);border:1px solid var(--info);}
+.son-b{background:#9c27b022;color:#ce93d8;border:1px solid #9c27b0;}
+.shp-b{background:#ff980022;color:#ffb300;border:1px solid #ff9800;}
+/* ── Live values ── */
+.lv{font-family:monospace;font-size:12px;font-weight:700;color:var(--acc2);
+  min-width:52px;text-align:right;flex-shrink:0;}
+.bar-sm{flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;}
+.bar-sm-fill{height:5px;border-radius:3px;transition:width .2s;}
+/* ── Sharp detect badge ── */
+.det-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;
+  font-weight:700;flex-shrink:0;min-width:80px;text-align:center;}
+.det-on{background:#00c85322;color:var(--ok);border:1px solid var(--ok);}
+.det-off{background:#33333322;color:var(--txt2);border:1px solid var(--brd);}
+/* ── Threshold rows ── */
+.trow{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.trow:last-child{margin-bottom:0;}
+.trow label{font-size:12px;color:var(--txt2);min-width:150px;flex-shrink:0;}
+.trow input[type=range]{flex:1;}
+.trow span{font-family:monospace;font-size:12px;min-width:54px;text-align:right;color:var(--acc2);}
+/* ── Strategy buttons ── */
+.est-btn{flex:1;padding:7px 8px;border:2px solid var(--brd);border-radius:8px;
+  background:var(--bg3);color:var(--txt2);font-size:11px;font-weight:700;cursor:pointer;}
+.est-btn.active{border-color:var(--acc);color:var(--acc2);background:var(--bg4);}
+/* ── Speed grid ── */
+.spd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.spd-item label{font-size:11px;color:var(--txt2);display:block;margin-bottom:3px;}
+.spd-item .sv{font-family:monospace;font-size:12px;color:var(--acc2);float:right;}
+/* ── Trim ── */
+.trim-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.trim-row label{font-size:12px;color:var(--txt2);min-width:100px;flex-shrink:0;}
+.trim-row input[type=range]{flex:1;}
+.trim-row .tv{font-family:monospace;font-size:12px;min-width:60px;text-align:right;color:var(--acc2);}
+/* ── GPIO monitor ── */
+.pin-map{width:100%;border-collapse:collapse;font-size:12px;}
+.pin-map th{background:var(--bg3);color:var(--txt2);padding:4px 8px;text-align:left;border-bottom:1px solid var(--brd);}
+.pin-map td{padding:4px 8px;border-bottom:1px solid var(--brd);}
+.pin-map tr:last-child td{border-bottom:none;}
+.pin-status{font-size:11px;color:var(--txt2);}
+.pin-status.ok{color:var(--ok);}
+.pin-status.warn{color:var(--warn);}
+/* ── Didactic note ── */
+.dnote{background:#0d1520;border:1px solid var(--info);border-left:4px solid var(--info);
+  border-radius:6px;padding:9px 12px;font-size:12px;color:#90caf9;margin:8px 0;line-height:1.5;}
+.dnote strong{color:#64b5f6;}
+</style>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">SUMO — LNR Argentina 2020+</div></div>
+  <div class="bdg" id="bdg">IDLE</div>
+</div>
+<div class="wrap">
+
+<!-- ══ 1. PERFIL DE ROBOT ══ -->
+<div class="card">
+  <div class="ct">Perfil de robot</div>
+  <div class="mode-tabs">
+    <div class="mode-tab active" id="tab-mini" onclick="setPerfil('mini')">
+      MINISUMO<small>10×10 cm · 500 g · Dojo 77 cm</small>
+    </div>
+    <div class="mode-tab" id="tab-micro" onclick="setPerfil('micro')">
+      MICROSUMO<small>5×5 cm · 100 g · Dojo 38.5 cm</small>
+    </div>
+  </div>
+  <!-- ADC meter educativo -->
+  <div class="adc-meter">
+    <div class="adc-pips">
+      <div class="adc-pip" id="pip0" title="GPIO0 — ADC0"></div>
+      <div class="adc-pip" id="pip1" title="GPIO1 — ADC1"></div>
+    </div>
+    <span class="adc-label" id="adc-label">ADC en uso: <span id="adc-used-txt" style="font-weight:700;color:var(--ok)">0 / 2</span></span>
+    <span id="adc-status" style="font-size:11px;color:var(--ok)">✔ OK</span>
+  </div>
+  <div class="conflict-box" id="adc-conflict-box"></div>
+  <div class="bus-warn-box" id="bus-warn-box"></div>
+</div>
+
+<!-- ══ 2. SENSOR DE OPONENTE ══ -->
+<div class="card">
+  <div class="ct">Sensor de oponente</div>
+
+  <div class="scfg">
+    <div class="srow">
+      <label>Tipo de sensor:</label>
+      <select id="tipo-dist" onchange="onSensorChange()">
+        <option value="sonar">HC-SR04 Ultrasónico</option>
+        <option value="sharp">Sharp 2Y0A21 (presencia digital)</option>
+        <option value="optico">JS40F / Óptico digital</option>
+      </select>
+    </div>
+    <div class="srow" id="row-num-dist">
+      <label>Cantidad:</label>
+      <select id="num-dist" onchange="onSensorChange()">
+        <option value="1">1 sensor — frontal</option>
+        <option value="2" selected>2 sensores — izq + der</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Nota didáctica Sharp (oculta por default) -->
+  <div class="dnote" id="sharp-note" style="display:none">
+    <strong>¿Por qué "presencia digital"?</strong><br>
+    El Sharp 2Y0A21 tiene una respuesta analógica <em>no lineal</em> a muy corta distancia
+    (~0–6 cm): un objeto muy cercano puede dar la misma lectura que uno lejano.
+    FRANKY lo usa como <strong>detector ON/OFF por umbral</strong>, eliminando esa ambigüedad.
+    Un valor ADC mayor al umbral = oponente detectado. Ajustá el umbral para cambiar el rango efectivo (~6–60 cm).
+  </div>
+
+  <!-- SONAR -->
+  <div id="cfg-sonar">
+    <div class="scfg">
+      <div id="sonar-I-block">
+        <div class="srow">
+          <label id="lbl-trig-I">TRIG izq:</label>
+          <select id="trig-I" onchange="checkBuses()">
+            <option value="20">GPIO20 (SPI off)</option>
+            <option value="6">GPIO6 (I2C off)</option>
+            <option value="10">GPIO10</option>
+          </select><span class="ab son-b">TRIG</span>
+        </div>
+        <div class="srow">
+          <label id="lbl-echo-I">ECHO izq:</label>
+          <select id="echo-I" onchange="checkBuses()">
+            <option value="21">GPIO21 (SPI off)</option>
+            <option value="7">GPIO7 (I2C off)</option>
+          </select><span class="ab son-b">ECHO</span>
+        </div>
+        <div class="srow" id="sonar-live-I">
+          <label id="lbl-sonar-live-I">Live izq:</label>
+          <div class="bar-sm"><div class="bar-sm-fill" id="bar-sonar-I" style="width:0%;background:var(--info)"></div></div>
+          <span class="lv" id="v-sonar-I" style="color:var(--info)">-- cm</span>
+        </div>
+      </div>
+      <div id="sonar-D-block" style="display:none">
+        <div class="srow">
+          <label>TRIG der:</label>
+          <select id="trig-D" onchange="checkBuses()">
+            <option value="6">GPIO6 (I2C off)</option>
+            <option value="10">GPIO10</option>
+          </select><span class="ab son-b">TRIG</span>
+        </div>
+        <div class="srow">
+          <label>ECHO der:</label>
+          <select id="echo-D" onchange="checkBuses()">
+            <option value="7">GPIO7 (I2C off)</option>
+            <option value="9">GPIO9</option>
+          </select><span class="ab son-b">ECHO</span>
+        </div>
+        <div class="srow">
+          <label>Live der:</label>
+          <div class="bar-sm"><div class="bar-sm-fill" id="bar-sonar-D" style="width:0%;background:var(--info)"></div></div>
+          <span class="lv" id="v-sonar-D" style="color:var(--info)">-- cm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARP -->
+  <div id="cfg-sharp" style="display:none">
+    <div class="scfg">
+      <div id="sharp-I-block">
+        <div class="srow">
+          <label id="lbl-sharp-I">Pin ADC izq:</label>
+          <select id="sharp-I" onchange="checkADC()">
+            <option value="0">GPIO0 — ADC0</option>
+            <option value="1">GPIO1 — ADC1</option>
+          </select><span class="ab shp-b">ADC</span>
+        </div>
+        <div class="srow">
+          <label>Estado:</label>
+          <div class="bar-sm"><div class="bar-sm-fill" id="bar-sharp-I" style="width:0%;background:var(--warn)"></div></div>
+          <span class="lv" id="v-sharp-adc-I" style="color:var(--txt2)">-</span>
+          <span class="det-badge det-off" id="det-I">NO DET.</span>
+        </div>
+      </div>
+      <div id="sharp-D-block" style="display:none">
+        <div class="srow">
+          <label>Pin ADC der:</label>
+          <select id="sharp-D" onchange="checkADC()">
+            <option value="1" selected>GPIO1 — ADC1</option>
+            <option value="0">GPIO0 — ADC0</option>
+          </select><span class="ab shp-b">ADC</span>
+        </div>
+        <div class="srow">
+          <label>Estado der:</label>
+          <div class="bar-sm"><div class="bar-sm-fill" id="bar-sharp-D" style="width:0%;background:var(--warn)"></div></div>
+          <span class="lv" id="v-sharp-adc-D" style="color:var(--txt2)">-</span>
+          <span class="det-badge det-off" id="det-D">NO DET.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÓPTICO -->
+  <div id="cfg-optico" style="display:none">
+    <div class="scfg">
+      <div id="optico-I-block">
+        <div class="srow">
+          <label id="lbl-opt-I">Pin óptico izq:</label>
+          <select id="opt-I" onchange="checkBuses()">
+            <option value="9">GPIO9 (siempre libre)</option>
+            <option value="6">GPIO6 (I2C off)</option>
+            <option value="10">GPIO10</option>
+            <option value="20">GPIO20 (SPI off)</option>
+          </select><span class="ab dig-b">DIG</span>
+        </div>
+      </div>
+      <div id="optico-D-block" style="display:none">
+        <div class="srow">
+          <label>Pin óptico der:</label>
+          <select id="opt-D" onchange="checkBuses()">
+            <option value="6">GPIO6 (I2C off)</option>
+            <option value="21">GPIO21 (SPI off)</option>
+          </select><span class="ab dig-b">DIG</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 3. SENSORES DE BORDE ══ -->
+<div class="card">
+  <div class="ct">Sensores de borde</div>
+  <p style="font-size:12px;color:var(--txt2);margin-bottom:8px">
+    QRE1113, CNY70, TCRT5000 o equivalentes analógicos. Usan los pines ADC.
+  </p>
+  <div class="scfg">
+    <div class="srow" id="row-num-borde">
+      <label>Cantidad:</label>
+      <select id="num-borde" onchange="onBordeChange()">
+        <option value="0">Sin sensor de borde</option>
+        <option value="1">1 sensor — frontal</option>
+        <option value="2" selected>2 sensores — izq + der</option>
+      </select>
+    </div>
+    <div id="borde-pines">
+      <div id="borde-I-row">
+        <div class="srow">
+          <label id="lbl-borde-I">Borde izq (ADC):</label>
+          <select id="borde-I" onchange="checkADC()">
+            <option value="0">GPIO0 — ADC0</option>
+            <option value="1">GPIO1 — ADC1</option>
+          </select><span class="ab adc-b">ADC</span>
+          <span class="lv" id="v-borde-I">-</span>
+        </div>
+      </div>
+      <div id="borde-D-row">
+        <div class="srow">
+          <label>Borde der (ADC):</label>
+          <select id="borde-D" onchange="checkADC()">
+            <option value="1" selected>GPIO1 — ADC1</option>
+            <option value="0">GPIO0 — ADC0</option>
+          </select><span class="ab adc-b">ADC</span>
+          <span class="lv" id="v-borde-D">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 4. UMBRALES ══ -->
+<div class="card">
+  <div class="ct">Umbrales de detección</div>
+  <div class="scfg">
+    <div id="row-u-sonar" class="trow">
+      <label>Oponente — distancia:</label>
+      <input type="range" min="5" max="75" value="30" id="u-dist"
+             oninput="syncSpan('u-dist','u-dist-v',' cm')">
+      <span id="u-dist-v">30 cm</span>
+    </div>
+    <div id="row-u-sharp" class="trow" style="display:none">
+      <label>Oponente — umbral Sharp:</label>
+      <input type="range" min="300" max="3800" value="1800" id="u-sharp"
+             oninput="syncSpan('u-sharp','u-sharp-v','');updateSharpLive()">
+      <span id="u-sharp-v">1800</span>
+    </div>
+    <div id="row-u-borde" class="trow">
+      <label>Borde — umbral ADC:</label>
+      <input type="range" min="200" max="3500" value="1500" id="u-borde"
+             oninput="syncSpan('u-borde','u-borde-v','')">
+      <span id="u-borde-v">1500</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 5. VELOCIDADES ══ -->
+<div class="card">
+  <div class="ct">Velocidades</div>
+  <div class="scfg spd-grid">
+    <div class="spd-item">
+      <label>Ataque <span class="sv" id="sv-atk">255</span></label>
+      <input type="range" min="100" max="255" value="255" id="spd-atk"
+             oninput="document.getElementById('sv-atk').textContent=this.value">
+    </div>
+    <div class="spd-item">
+      <label>Búsqueda rápido <span class="sv" id="sv-bex">210</span></label>
+      <input type="range" min="60" max="255" value="210" id="spd-bex"
+             oninput="document.getElementById('sv-bex').textContent=this.value">
+    </div>
+    <div class="spd-item">
+      <label>Búsqueda lento <span class="sv" id="sv-bin">70</span></label>
+      <input type="range" min="0" max="180" value="70" id="spd-bin"
+             oninput="document.getElementById('sv-bin').textContent=this.value">
+    </div>
+    <div class="spd-item">
+      <label>Evasión borde <span class="sv" id="sv-ev">220</span></label>
+      <input type="range" min="80" max="255" value="220" id="spd-ev"
+             oninput="document.getElementById('sv-ev').textContent=this.value">
+    </div>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    Búsqueda rápido + lento forman el arco de círculo cerrado. Diferencia mayor = arco más cerrado.
+  </p>
+</div>
+
+<!-- ══ 6. ESTRATEGIA (solo mini) ══ -->
+<div class="card" id="sec-estrategia">
+  <div class="ct">Estrategia de búsqueda</div>
+  <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <button class="est-btn active" id="est-circ" onclick="setEst(0)">⊙ CÍRCULO CERRADO</button>
+    <button class="est-btn" id="est-cab" onclick="setEst(1)">↔ CABECEO</button>
+  </div>
+  <div id="est-circ-desc" class="scfg" style="padding:8px 10px;">
+    <p style="font-size:12px;color:var(--txt2);margin:0">
+      El robot traza arcos mientras busca. Motor rápido (exterior) + motor lento (interior)
+      = radio del arco. Minimiza salidas del dojo.
+    </p>
+  </div>
+  <div id="est-cab-desc" class="scfg" style="display:none;padding:8px 10px;">
+    <p style="font-size:12px;color:var(--txt2);margin:0">
+      El robot oscila izquierda/derecha barriendo 180°. Útil con sensores de ángulo estrecho.
+      Intervalo: 300 ms por lado.
+    </p>
+  </div>
+</div>
+
+<!-- ══ 7. TRIM ══ -->
+<div class="card">
+  <div class="ct">⚙ Trim de motores</div>
+  <p style="font-size:12px;color:var(--txt2);margin-bottom:10px">
+    Si el robot no avanza recto, reducí el motor que gira hacia ese lado.
+  </p>
+  <div class="trim-row">
+    <label>Motor A:</label>
+    <input type="range" min="0" max="255" value="255" id="tr-ma" oninput="updTrim()">
+    <span class="tv" id="tr-ma-v">255 (100%)</span>
+  </div>
+  <div class="trim-row">
+    <label>Motor B:</label>
+    <input type="range" min="0" max="255" value="255" id="tr-mb" oninput="updTrim()">
+    <span class="tv" id="tr-mb-v">255 (100%)</span>
+  </div>
+  <button class="btn bo bsm" onclick="applyTrim()">✔ Aplicar trim</button>
+</div>
+
+<!-- ══ 8. MONITOR GPIO ══ -->
+<div class="card">
+  <div class="ct">Monitor GPIO — en vivo</div>
+  <table class="pin-map">
+    <tr><th>GPIO</th><th>Tipo</th><th>Rol actual</th><th colspan="2">Valor</th></tr>
+    <tr>
+      <td><b>GPIO0</b></td><td><span class="ab adc-b">ADC0</span></td>
+      <td id="fn-gpio0" class="pin-status">libre</td>
+      <td><div class="bar-sm"><div class="bar-sm-fill" id="bar0" style="width:0%;background:var(--ok)"></div></div></td>
+      <td class="lv" id="val0">-</td>
+    </tr>
+    <tr>
+      <td><b>GPIO1</b></td><td><span class="ab adc-b">ADC1</span></td>
+      <td id="fn-gpio1" class="pin-status">libre</td>
+      <td><div class="bar-sm"><div class="bar-sm-fill" id="bar1" style="width:0%;background:var(--ok)"></div></div></td>
+      <td class="lv" id="val1">-</td>
+    </tr>
+    <tr>
+      <td>GPIO6</td><td><span class="ab dig-b">DIG</span></td>
+      <td class="pin-status" id="fn-gpio6">—</td>
+      <td></td><td class="lv" id="val6" style="color:var(--txt2)">-</td>
+    </tr>
+    <tr>
+      <td>GPIO7</td><td><span class="ab dig-b">DIG</span></td>
+      <td class="pin-status" id="fn-gpio7">—</td>
+      <td></td><td class="lv" id="val7" style="color:var(--txt2)">-</td>
+    </tr>
+    <tr>
+      <td>GPIO9</td><td><span class="ab" style="background:#ff980022;color:#ffb300;border:1px solid #ff9800">FREE</span></td>
+      <td class="pin-status">Start / óptico</td>
+      <td></td><td class="lv" id="val9">-</td>
+    </tr>
+    <tr>
+      <td>GPIO20</td><td><span class="ab dig-b">DIG</span></td>
+      <td class="pin-status" id="fn-gpio20">—</td>
+      <td></td><td class="lv" id="val20" style="color:var(--txt2)">-</td>
+    </tr>
+    <tr>
+      <td>GPIO21</td><td><span class="ab dig-b">DIG</span></td>
+      <td class="pin-status" id="fn-gpio21">—</td>
+      <td></td><td class="lv" id="val21" style="color:var(--txt2)">-</td>
+    </tr>
+  </table>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px">
+    GPIO6/7 disponibles deshabilitando I2C · GPIO20/21 deshabilitando SPI en
+    <a data-app-href="panel_config.html" style="color:var(--acc2)">Panel → Configuración</a>
+  </p>
+</div>
+
+<!-- ══ 9. CONTROL ══ -->
+<div id="sec-start">
+  <button class="bd" id="btn-start" onclick="iniciarSumo()">▶ INICIAR SUMO</button>
+</div>
+<div id="sec-stop" style="display:none">
+  <div class="bw" id="active-warn">MODO ACTIVO</div>
+  <button class="bd" onclick="detenerSumo()">■ DETENER COMBATE</button>
+</div>
+
+<a data-app-href="index.html" class="btn bg">⌂ Volver al inicio</a>
+
+</div><!-- /wrap -->
+<script>
+FRANKY_BASE.rewriteDom();
+// ════════════════════════════════════════════════════════
+//  Estado local del frontend
+// ════════════════════════════════════════════════════════
+var PERFIL = "mini";   // "mini" | "micro"
+var EST    = 0;        // 0=círculo, 1=cabeceo
+// Estado de buses (actualizado desde /api)
+var busI2C = false;
+var busSPI = false;
+
+// ── Perfil ──────────────────────────────────────────────
+function setPerfil(p) {
+  PERFIL = p;
+  document.getElementById("tab-mini").className  = "mode-tab" + (p==="mini"  ? " active" : "");
+  document.getElementById("tab-micro").className = "mode-tab" + (p==="micro" ? " active" : "");
+
+  var isMini = (p === "mini");
+  // Mini: puede elegir cantidad de sensores; micro: siempre 1
+  document.getElementById("row-num-dist").style.display  = isMini ? "flex" : "none";
+  document.getElementById("row-num-borde").style.display = isMini ? "flex" : "none";
+  if (!isMini) {
+    document.getElementById("num-dist").value  = "1";
+    var nb = document.getElementById("num-borde");
+    if (parseInt(nb.value) > 1) nb.value = "1";
+    document.getElementById("u-dist").max = "35";
+  } else {
+    document.getElementById("u-dist").max = "75";
+  }
+  // Estrategia: micro siempre círculo, no muestra selector
+  document.getElementById("sec-estrategia").style.display = isMini ? "block" : "none";
+
+  document.getElementById("btn-start").textContent =
+    isMini ? "▶ INICIAR MINISUMO" : "▶ INICIAR MICROSUMO";
+
+  onSensorChange();
+  onBordeChange();
+  checkADC();
+}
+
+// ── Cambio de sensor de distancia ──────────────────────
+function onSensorChange() {
+  var tipo  = document.getElementById("tipo-dist").value;
+  var nDist = PERFIL==="mini" ? parseInt(document.getElementById("num-dist").value) : 1;
+  var isDos = (nDist >= 2);
+
+  // Bloques visibles según tipo
+  document.getElementById("cfg-sonar").style.display  = tipo==="sonar"  ? "block" : "none";
+  document.getElementById("cfg-sharp").style.display  = tipo==="sharp"  ? "block" : "none";
+  document.getElementById("cfg-optico").style.display = tipo==="optico" ? "block" : "none";
+  document.getElementById("sharp-note").style.display = tipo==="sharp"  ? "block" : "none";
+
+  // Segundo sensor
+  document.getElementById("sonar-D-block").style.display  = (tipo==="sonar"  && isDos) ? "block" : "none";
+  document.getElementById("sharp-D-block").style.display  = (tipo==="sharp"  && isDos) ? "block" : "none";
+  document.getElementById("optico-D-block").style.display = (tipo==="optico" && isDos) ? "block" : "none";
+
+  // Labels singulares/plur
+  setLbl("lbl-trig-I",   isDos ? "TRIG izq:"       : "TRIG:");
+  setLbl("lbl-echo-I",   isDos ? "ECHO izq:"       : "ECHO:");
+  setLbl("lbl-sonar-live-I", isDos ? "Live izq:"   : "Live:");
+  setLbl("lbl-sharp-I",  isDos ? "Pin ADC izq:"    : "Pin ADC:");
+  setLbl("lbl-opt-I",    isDos ? "Pin óptico izq:" : "Pin óptico:");
+
+  // Umbrales
+  document.getElementById("row-u-sonar").style.display = tipo==="sonar"  ? "flex" : "none";
+  document.getElementById("row-u-sharp").style.display = tipo==="sharp"  ? "flex" : "none";
+
+  checkADC();
+  checkBuses();
+}
+
+// ── Cambio de sensores de borde ─────────────────────────
+function onBordeChange() {
+  var n = parseInt(document.getElementById("num-borde").value);
+  document.getElementById("borde-pines").style.display   = n > 0 ? "block" : "none";
+  document.getElementById("borde-D-row").style.display   = n >= 2 ? "block" : "none";
+  document.getElementById("row-u-borde").style.display   = n > 0 ? "flex" : "none";
+  setLbl("lbl-borde-I", n===1 ? "Borde (ADC):" : "Borde izq (ADC):");
+  checkADC();
+}
+
+// ── Estrategia ──────────────────────────────────────────
+function setEst(n) {
+  EST = n;
+  document.getElementById("est-circ").className = "est-btn" + (n===0?" active":"");
+  document.getElementById("est-cab").className  = "est-btn" + (n===1?" active":"");
+  document.getElementById("est-circ-desc").style.display = n===0 ? "block" : "none";
+  document.getElementById("est-cab-desc").style.display  = n===1 ? "block" : "none";
+}
+
+// ── Validación ADC (frontend) ────────────────────────────
+function countADC() {
+  var tipo  = document.getElementById("tipo-dist").value;
+  var nDist = PERFIL==="mini" ? parseInt(document.getElementById("num-dist").value) : 1;
+  var nBorde = parseInt(document.getElementById("num-borde").value);
+  var adc = 0;
+  if (tipo === "sharp") adc += nDist;
+  adc += nBorde;
+  return adc;
+}
+
+function checkADC() {
+  var used = countADC();
+  var conflict = used > 2;
+  // Update pips
+  for (var i=0; i<2; i++) {
+    var pip = document.getElementById("pip"+i);
+    pip.className = "adc-pip" + (i < used ? (conflict ? " conflict" : " used") : "");
+  }
+  var usedTxt  = document.getElementById("adc-used-txt");
+  var statusEl = document.getElementById("adc-status");
+  var confBox  = document.getElementById("adc-conflict-box");
+  usedTxt.textContent = used + " / 2";
+  usedTxt.style.color = conflict ? "var(--danger)" : (used>0 ? "var(--warn)" : "var(--ok)");
+  if (conflict) {
+    statusEl.textContent = "✗ CONFLICTO";
+    statusEl.style.color = "var(--danger)";
+    confBox.style.display = "block";
+    confBox.textContent = "⚠ Conflicto ADC: se necesitan " + used + " pines ADC pero solo hay 2 disponibles (GPIO0 y GPIO1). "
+      + "Reducí la cantidad de sensores Sharp o de borde para continuar.";
+  } else {
+    statusEl.textContent = used === 2 ? "⚡ 2/2 usados" : "✔ OK";
+    statusEl.style.color = used===2 ? "var(--warn)" : "var(--ok)";
+    confBox.style.display = "none";
+  }
+  // Actualizar roles en monitor
+  updatePinRoles();
+}
+
+// ── Validación buses I2C/SPI ────────────────────────────
+var I2C_PINS = [6, 7];
+var SPI_PINS = [20, 21];
+
+function pinBloqueado(p) {
+  p = parseInt(p);
+  if (busI2C && I2C_PINS.indexOf(p) >= 0) return "I2C";
+  if (busSPI && SPI_PINS.indexOf(p) >= 0) return "SPI";
+  return null;
+}
+
+function checkBuses() {
+  var tipo  = document.getElementById("tipo-dist").value;
+  var nDist = PERFIL==="mini" ? parseInt(document.getElementById("num-dist").value) : 1;
+  var warns = [];
+
+  if (tipo === "sonar") {
+    var pins = [
+      document.getElementById("trig-I").value,
+      document.getElementById("echo-I").value
+    ];
+    if (nDist >= 2) {
+      pins.push(document.getElementById("trig-D").value);
+      pins.push(document.getElementById("echo-D").value);
+    }
+    pins.forEach(function(p){
+      var bus = pinBloqueado(p);
+      if (bus) warns.push("GPIO"+p+" está en uso por "+bus+". Deshabilitá el bus en Panel → Configuración.");
+    });
+  } else if (tipo === "optico") {
+    var p1 = document.getElementById("opt-I").value;
+    var bus1 = pinBloqueado(p1);
+    if (bus1) warns.push("GPIO"+p1+" está en uso por "+bus1+".");
+    if (nDist >= 2) {
+      var p2 = document.getElementById("opt-D").value;
+      var bus2 = pinBloqueado(p2);
+      if (bus2) warns.push("GPIO"+p2+" está en uso por "+bus2+".");
+    }
+  }
+
+  var bwBox = document.getElementById("bus-warn-box");
+  if (warns.length > 0) {
+    bwBox.style.display = "block";
+    bwBox.textContent = "⚠ " + warns.join(" | ");
+  } else {
+    bwBox.style.display = "none";
+  }
+  checkADC();
+}
+
+// ── Roles en monitor GPIO ───────────────────────────────
+function updatePinRoles() {
+  var tipo  = document.getElementById("tipo-dist").value;
+  var nDist = PERFIL==="mini" ? parseInt(document.getElementById("num-dist").value) : 1;
+  var nBorde = parseInt(document.getElementById("num-borde").value);
+
+  var roles = {0:"libre", 1:"libre", 6:"—", 7:"—", 9:"—", 20:"—", 21:"—"};
+
+  // Sharp
+  if (tipo === "sharp") {
+    var spI = parseInt(document.getElementById("sharp-I").value);
+    roles[spI] = "Sharp opon. izq";
+    if (nDist >= 2) {
+      var spD = parseInt(document.getElementById("sharp-D").value);
+      roles[spD] = roles[spD] === "libre" ? "Sharp opon. der" : roles[spD]+"+Sharp der";
+    }
+  }
+  // Borde
+  if (nBorde >= 1) {
+    var bI = parseInt(document.getElementById("borde-I").value);
+    roles[bI] = roles[bI] !== "libre" ? roles[bI]+"+Borde izq" : "Borde izq";
+  }
+  if (nBorde >= 2) {
+    var bD = parseInt(document.getElementById("borde-D").value);
+    roles[bD] = roles[bD] !== "libre" ? roles[bD]+"+Borde der" : "Borde der";
+  }
+  // Sonar
+  if (tipo === "sonar") {
+    var tI = document.getElementById("trig-I").value;
+    var eI = document.getElementById("echo-I").value;
+    roles[parseInt(tI)] = "Sonar TRIG izq";
+    roles[parseInt(eI)] = "Sonar ECHO izq";
+    if (nDist >= 2) {
+      roles[parseInt(document.getElementById("trig-D").value)] = "Sonar TRIG der";
+      roles[parseInt(document.getElementById("echo-D").value)] = "Sonar ECHO der";
+    }
+  }
+  // Óptico
+  if (tipo === "optico") {
+    roles[parseInt(document.getElementById("opt-I").value)] = "Óptico izq";
+    if (nDist >= 2) roles[parseInt(document.getElementById("opt-D").value)] = "Óptico der";
+  }
+
+  function setRole(pin, role) {
+    var el = document.getElementById("fn-gpio"+pin);
+    if (!el) return;
+    var bloq = pinBloqueado(pin);
+    if (bloq) { el.textContent = bloq+" (bus activo)"; el.className="pin-status warn"; return; }
+    var isUsed = (role !== "libre" && role !== "—");
+    el.textContent = role;
+    el.className = "pin-status" + (isUsed ? " ok" : "");
+  }
+
+  setRole(0,  roles[0]);
+  setRole(1,  roles[1]);
+  setRole(6,  busI2C ? "I2C SDA" : roles[6]);
+  setRole(7,  busI2C ? "I2C SCL" : roles[7]);
+  setRole(20, busSPI ? "SPI CLK" : roles[20]);
+  setRole(21, busSPI ? "SPI MOSI": roles[21]);
+}
+
+// ── Trim ───────────────────────────────────────────────
+function updTrim() {
+  var ma = document.getElementById("tr-ma").value;
+  var mb = document.getElementById("tr-mb").value;
+  document.getElementById("tr-ma-v").textContent = ma+" ("+Math.round(ma*100/255)+"%)";
+  document.getElementById("tr-mb-v").textContent = mb+" ("+Math.round(mb*100/255)+"%)";
+}
+function applyTrim() {
+  var ma = document.getElementById("tr-ma").value;
+  var mb = document.getElementById("tr-mb").value;
+  fetch("/sumo/trim?ma="+ma+"&mb="+mb).then(function(r){
+    if(r.ok) alert("Trim guardado: MA="+ma+" MB="+mb);
+  });
+}
+
+// ── Sharp live display ──────────────────────────────────
+function updateSharpLive() {
+  // Llamado cuando cambia el slider de umbral → actualiza badges inmediatamente
+  // (los valores ADC reales llegan por /api poll)
+}
+
+// ── Helpers ────────────────────────────────────────────
+function setLbl(id, txt) {
+  var el = document.getElementById(id); if(el) el.textContent = txt;
+}
+function syncSpan(inId, spnId, suffix) {
+  var el=document.getElementById(inId), sp=document.getElementById(spnId);
+  if(el&&sp) sp.textContent = el.value + suffix;
+}
+function g(id) { return document.getElementById(id); }
+
+// ════════════════════════════════════════════════════════
+//  INICIAR / DETENER
+// ════════════════════════════════════════════════════════
+function iniciarSumo() {
+  // Bloquear si hay conflicto ADC
+  if (countADC() > 2) {
+    alert("⚠ Conflicto ADC: estás usando " + countADC() + " pines ADC pero el ESP32-C3 solo tiene 2.\n\nReducí sensores Sharp o de borde.");
+    return;
+  }
+
+  var tipo  = document.getElementById("tipo-dist").value;
+  var nDist = PERFIL==="mini" ? parseInt(g("num-dist").value) : 1;
+  var nBorde = parseInt(g("num-borde").value);
+
+  // Construir query string para /sumo/config
+  var p = {
+    modo:     PERFIL,
+    tipo:     tipo,
+    numDist:  nDist,
+    numBorde: nBorde,
+    umbral_borde:  g("u-borde").value,
+    spdAtaque:     g("spd-atk").value,
+    spdBuscExt:    g("spd-bex").value,
+    spdBuscInt:    g("spd-bin").value,
+    spdEvasion:    g("spd-ev").value,
+    estrategia:    PERFIL==="micro" ? 0 : EST
+  };
+
+  if (tipo === "sonar") {
+    p.trigI = g("trig-I").value;
+    p.echoI = g("echo-I").value;
+    if (nDist >= 2 && PERFIL==="mini") {
+      p.trigD = g("trig-D").value;
+      p.echoD = g("echo-D").value;
+    }
+    p.umbral_dist = g("u-dist").value;
+  } else if (tipo === "sharp") {
+    p.sharpI = g("sharp-I").value;
+    if (nDist >= 2 && PERFIL==="mini") p.sharpD = g("sharp-D").value;
+    p.umbral_sharp = g("u-sharp").value;
+  } else {
+    p.optI = g("opt-I").value;
+    if (nDist >= 2 && PERFIL==="mini") p.optD = g("opt-D").value;
+  }
+
+  if (nBorde >= 1) p.bordeI = g("borde-I").value;
+  if (nBorde >= 2) p.bordeD = g("borde-D").value;
+
+  // Para compatibilidad legacy: umbrales mini con sufijo _mini
+  if (PERFIL === "mini") {
+    p.umbral_dist_mini  = p.umbral_dist  || 30;
+    p.umbral_borde_mini = p.umbral_borde || 1500;
+  }
+
+  var qs = Object.keys(p).map(function(k){return k+"="+p[k];}).join("&");
+  var endpoint = PERFIL==="micro" ? "/sumo/micro" : "/sumo/mini";
+
+  fetch("/sumo/config?"+qs).then(function(r){
+    return r.json();
+  }).then(function(d){
+    if (!d.ok) {
+      alert("⚠ Error firmware: " + (d.error || "configuración rechazada"));
+      return;
+    }
+    return fetch(endpoint);
+  }).then(function(){
+    g("sec-stop").style.display  = "block";
+    g("sec-start").style.display = "none";
+    var lbl = PERFIL==="micro" ? "MICROSUMO" : "MINISUMO";
+    g("active-warn").textContent = "MODO ACTIVO — "+lbl+" — retardo 5 seg de seguridad...";
+    g("bdg").textContent = lbl;
+  }).catch(function(e){ alert("Error de conexión: "+e); });
+}
+
+function detenerSumo() {
+  fetch("/sumo/stop").then(function(){
+    g("sec-stop").style.display  = "none";
+    g("sec-start").style.display = "block";
+    g("bdg").textContent = "IDLE";
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  TELEMETRÍA — Un solo polling /api  (700 ms)
+//  El sonar live se mantiene por /sonar/read solo si está visible
+// ════════════════════════════════════════════════════════
+setInterval(function(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    // Buses
+    busI2C = !!d.i2c;
+    busSPI = !!d.spi;
+
+    // ADC raw → barras y valores
+    var a0 = d.a0 || 0, a1 = d.a1 || 0;
+    g("val0").textContent = a0;
+    g("val1").textContent = a1;
+    g("bar0").style.width = Math.round(a0/40.95)+"%";
+    g("bar1").style.width = Math.round(a1/40.95)+"%";
+
+    // GPIO status bus
+    g("val6").textContent  = busI2C ? "I2C on" : "libre";
+    g("val7").textContent  = busI2C ? "I2C on" : "libre";
+    g("val20").textContent = busSPI ? "SPI on" : "libre";
+    g("val21").textContent = busSPI ? "SPI on" : "libre";
+    g("val9").textContent  = d.btn ? "1" : "0";
+
+    // Sharp live desde /api (sharp_adc_i, sharp_adc_d, sharp_det_i, sharp_det_d)
+    if (document.getElementById("cfg-sharp").style.display !== "none") {
+      var adcI = d.sharp_adc_i || 0;
+      var adcD = d.sharp_adc_d || 0;
+      var umbral = parseInt(g("u-sharp").value);
+      // Usar umbral local para feedback inmediato al mover el slider
+      var detI = (adcI > umbral);
+      var detD = (adcD > umbral);
+      g("v-sharp-adc-I").textContent = adcI;
+      g("bar-sharp-I").style.width   = Math.round(adcI/40.95)+"%";
+      g("bar-sharp-I").style.background = detI ? "var(--ok)" : "var(--warn)";
+      g("det-I").textContent  = detI ? "DETECTADO" : "NO DET.";
+      g("det-I").className    = "det-badge " + (detI ? "det-on" : "det-off");
+      if (document.getElementById("sharp-D-block").style.display !== "none") {
+        g("v-sharp-adc-D").textContent = adcD;
+        g("bar-sharp-D").style.width   = Math.round(adcD/40.95)+"%";
+        g("bar-sharp-D").style.background = detD ? "var(--ok)" : "var(--warn)";
+        g("det-D").textContent  = detD ? "DETECTADO" : "NO DET.";
+        g("det-D").className    = "det-badge " + (detD ? "det-on" : "det-off");
+      }
+    }
+
+    // Borde live
+    var nBorde = parseInt(g("num-borde").value);
+    if (nBorde >= 1) {
+      var pI = parseInt(g("borde-I").value);
+      g("v-borde-I").textContent = (pI===0) ? a0 : a1;
+    }
+    if (nBorde >= 2) {
+      var pD = parseInt(g("borde-D").value);
+      g("v-borde-D").textContent = (pD===0) ? a0 : a1;
+    }
+
+    // Trim desde firmware (solo si usuario no modificó)
+    if (d.trimA !== undefined) {
+      var tma = g("tr-ma"), tmb = g("tr-mb");
+      if (tma && parseInt(tma.value)===255 && d.trimA!==255) { tma.value=d.trimA; }
+      if (tmb && parseInt(tmb.value)===255 && d.trimB!==255) { tmb.value=d.trimB; }
+      updTrim();
+    }
+
+    // Restaurar velocidades desde firmware al cargar
+    if (d.s_atk !== undefined && !_spdRestored) {
+      _spdRestored = true;
+      g("spd-atk").value = d.s_atk; g("sv-atk").textContent = d.s_atk;
+      g("spd-bex").value = d.s_bex; g("sv-bex").textContent = d.s_bex;
+      g("spd-bin").value = d.s_bin; g("sv-bin").textContent = d.s_bin;
+      g("spd-ev").value  = d.s_ev;  g("sv-ev").textContent  = d.s_ev;
+      g("u-dist").value  = d.s_udist;  syncSpan("u-dist","u-dist-v"," cm");
+      g("u-sharp").value = d.s_usharp; syncSpan("u-sharp","u-sharp-v","");
+      g("u-borde").value = d.s_uborde; syncSpan("u-borde","u-borde-v","");
+    }
+
+    // Estado activo
+    if (d.running && (d.mode===1||d.mode===2)) {
+      g("bdg").textContent = d.mode===1?"MICROSUMO":"MINISUMO";
+    } else if (!d.running) {
+      if (g("bdg").textContent !== "IDLE") g("bdg").textContent = "IDLE";
+    }
+
+    checkBuses(); // re-check con estado bus actualizado
+  }).catch(function(){});
+}, 700);
+
+var _spdRestored = false; // flag para restaurar velocidades solo 1 vez
+
+// ── Sonar live (solo cuando visible, 600ms) ─────────────
+setInterval(function(){
+  var tipo = document.getElementById("tipo-dist").value;
+  if (tipo !== "sonar") return;
+  var nDist = PERFIL==="mini" ? parseInt(g("num-dist").value) : 1;
+  var maxCm = PERFIL==="micro" ? 40 : 80;
+
+  var tI = g("trig-I").value, eI = g("echo-I").value;
+  fetch("/sonar/read?trig="+tI+"&echo="+eI)
+    .then(function(r){return r.json();}).then(function(d){
+      var cm = d.cm||0;
+      g("v-sonar-I").textContent = cm+" cm";
+      g("bar-sonar-I").style.width = Math.min(100, cm*100/maxCm)+"%";
+    }).catch(function(){});
+
+  if (nDist >= 2 && PERFIL==="mini") {
+    var tD = g("trig-D").value, eD = g("echo-D").value;
+    fetch("/sonar/read?trig="+tD+"&echo="+eD)
+      .then(function(r){return r.json();}).then(function(d){
+        var cm = d.cm||0;
+        g("v-sonar-D").textContent = cm+" cm";
+        g("bar-sonar-D").style.width = Math.min(100, cm*100/maxCm)+"%";
+      }).catch(function(){});
+  }
+}, 600);
+
+// ── Init ────────────────────────────────────────────────
+setPerfil("mini");
+</script>
+</body></html>
