@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Vision</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+#preview-wrap{width:100%;max-width:480px;margin:0 auto 10px;border-radius:10px;
+  overflow:hidden;background:#111;min-height:160px;display:flex;
+  align-items:center;justify-content:center;}
+#preview{width:100%;display:block;border-radius:10px;}
+#preview-ph{color:var(--txt2);font-size:13px;padding:30px;text-align:center;line-height:1.7;}
+#canvas-hidden{display:none;}
+.det-status{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:var(--bg3);border-radius:8px;margin-bottom:10px;}
+.dot-det{width:14px;height:14px;border-radius:50%;background:var(--brd);flex-shrink:0;transition:background .3s;}
+.dot-det.on{background:var(--ok);}.dot-det.off{background:var(--danger);}
+.det-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.det-mode{background:var(--bg3);border:2px solid var(--brd);border-radius:8px;
+  padding:10px;cursor:pointer;text-align:center;}
+.det-mode.sel{border-color:var(--acc);}
+.det-mode .icon{font-size:20px;display:block;margin-bottom:3px;}
+.det-mode .name{font-size:12px;font-weight:700;color:var(--txt);}
+.det-mode .desc{font-size:10px;color:var(--txt2);}
+.action-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.action-row label{min-width:100px;font-size:12px;color:var(--txt2);}
+.action-row select,.action-row input[type=range]{flex:1;}
+.action-row select{background:var(--bg3);border:1px solid var(--brd);
+  color:var(--txt);padding:7px;border-radius:6px;font-size:13px;}
+.cmd-log{height:80px;overflow-y:auto;background:#111;border-radius:6px;
+  padding:8px;font-family:monospace;font-size:12px;color:#80cbc4;border:1px solid var(--brd);}
+.cmd-ok{color:var(--ok);}.cmd-info{color:var(--info);}.cmd-err{color:var(--danger);}
+.capture-btn{width:100%;padding:14px;font-size:15px;font-weight:700;
+  border-radius:10px;border:2px dashed var(--acc);background:var(--bg3);
+  color:var(--acc2);cursor:pointer;margin-bottom:8px;}
+#file-input{display:none;}
+</style>
+</head>
+<body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Vision Artificial</div></div>
+  <div class="bdg" id="ai-bdg">VISION</div>
+</div>
+<div class="wrap">
+
+<!-- Captura -->
+<div class="card"><div class="ct">Captura de imagen</div>
+  <div id="preview-wrap">
+    <img id="preview" style="display:none" alt="">
+    <div id="preview-ph">Presionar el boton para tomar una foto con la camara del celular</div>
+  </div>
+  <input type="file" id="file-input" accept="image/*" capture="environment"
+    onchange="onImageSelected(this)">
+  <button class="capture-btn" onclick="document.getElementById('file-input').click()">
+    &#128247; Abrir camara y tomar foto
+  </button>
+  <div class="row">
+    <button class="bg bsm" onclick="toggleGaleria()">&#128444; Galeria</button>
+    <button class="bo bsm" id="btn-analizar" onclick="analizarImagen()" disabled>
+      &#128269; Analizar
+    </button>
+  </div>
+</div>
+
+<!-- Estado -->
+<div class="det-status">
+  <div class="dot-det" id="det-ind"></div>
+  <span style="font-weight:700;font-size:13px" id="det-lbl">Sin imagen</span>
+  <span style="margin-left:auto;font-size:12px;color:var(--txt2)" id="det-conf"></span>
+</div>
+
+<!-- Modo de deteccion -->
+<div class="card"><div class="ct">Modo de Deteccion</div>
+<div class="det-modes">
+  <div class="det-mode sel" id="mode-color" onclick="setDetMode('color')">
+    <span class="icon">&#127744;</span>
+    <div class="name">Color</div><div class="desc">Detecta color objetivo</div>
+  </div>
+  <div class="det-mode" id="mode-line" onclick="setDetMode('line')">
+    <span class="icon">&#9135;</span>
+    <div class="name">Linea</div><div class="desc">Linea negra velocista</div>
+  </div>
+  <div class="det-mode" id="mode-bright" onclick="setDetMode('bright')">
+    <span class="icon">&#9728;</span>
+    <div class="name">Brillo</div><div class="desc">Nivel de luz</div>
+  </div>
+  <div class="det-mode" id="mode-rojo" onclick="setDetMode('rojo')">
+    <span class="icon">&#127941;</span>
+    <div class="name">Rojo vs Azul</div><div class="desc">Sumo por color</div>
+  </div>
+</div>
+<div id="cfg-color">
+  <div class="action-row">
+    <label>Color objetivo:</label>
+    <input type="color" id="target-color" value="#ff0000"
+      style="width:50px;height:34px;border:none;border-radius:6px;cursor:pointer"
+      oninput="updateTargetColor(this.value)">
+    <button class="bg bsm" onclick="pickColorFromImage()">Del centro</button>
+  </div>
+  <div class="action-row">
+    <label>Tolerancia:</label>
+    <input type="range" min="10" max="120" value="50" id="color-tol"
+      oninput="document.getElementById('tol-v').textContent=this.value">
+    <span id="tol-v" style="font-size:13px;min-width:28px">50</span>
+  </div>
+</div>
+<div id="cfg-line" style="display:none">
+  <div class="action-row">
+    <label>Umbral oscuridad:</label>
+    <input type="range" min="20" max="150" value="70" id="line-thr">
+  </div>
+</div>
+<div id="cfg-bright" style="display:none">
+  <div class="action-row">
+    <label>Umbral brillo:</label>
+    <input type="range" min="10" max="90" value="50" id="bright-thr">
+  </div>
+</div>
+<div id="cfg-rojo" style="display:none">
+  <p style="font-size:12px;color:var(--txt2);margin:4px 0">
+    Detecta si predomina rojo (atacar) o azul (evitar).
+  </p>
+</div>
+<div class="action-row" style="margin-top:8px">
+  <label>Umbral activacion:</label>
+  <input type="range" min="1" max="50" value="5" id="thresh"
+    oninput="document.getElementById('thresh-v').textContent=this.value+'%'">
+  <span id="thresh-v" style="font-size:13px;min-width:35px">5%</span>
+</div>
+</div>
+
+<!-- Acciones -->
+<div class="card"><div class="ct">Acciones al detectar</div>
+  <div class="action-row">
+    <label>Si DETECTA:</label>
+    <select id="act-on">
+      <option value="f">Adelante</option>
+      <option value="b">Atras</option>
+      <option value="l">Izquierda</option>
+      <option value="r">Derecha</option>
+      <option value="s">Parar</option>
+      <option value="none">Sin accion</option>
+    </select>
+  </div>
+  <div class="action-row">
+    <label>Si NO detecta:</label>
+    <select id="act-off">
+      <option value="s">Parar</option>
+      <option value="r">Buscar (giro)</option>
+      <option value="f">Adelante</option>
+      <option value="none">Sin accion</option>
+    </select>
+  </div>
+  <div class="action-row">
+    <label>Velocidad:</label>
+    <input type="range" min="0" max="255" value="180" id="ai-spd"
+      oninput="document.getElementById('ai-spd-v').textContent=Math.round(this.value*100/255)+'%'">
+    <span id="ai-spd-v" style="font-size:13px;min-width:35px">71%</span>
+  </div>
+</div>
+
+<!-- Control manual -->
+<div class="card"><div class="ct">Control Manual</div>
+  <div class="row">
+    <button class="bo bsm" onclick="cmd('f')">&#8593;</button>
+    <button class="bg bsm" onclick="cmd('l')">&#8592;</button>
+    <button class="bd bsm" onclick="fetch('/st')">&#9632;</button>
+    <button class="bg bsm" onclick="cmd('r')">&#8594;</button>
+    <button class="bg bsm" onclick="cmd('b')">&#8595;</button>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="card">
+  <div class="ct">Log
+    <button class="bg bsm" onclick="clearLog()" style="float:right">Limpiar</button>
+  </div>
+  <div class="cmd-log" id="cmd-log">
+    <div class="cmd-info">Listo.</div>
+  </div>
+</div>
+<div class="st"><span class="sl">Comandos enviados</span><span class="sv" id="cmd-cnt">0</span></div>
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<canvas id="canvas-hidden" style="display:none"></canvas>
+
+<script>
+FRANKY_BASE.rewriteDom();
+var canv = document.getElementById("canvas-hidden");
+var ctx  = canv.getContext("2d");
+var detMode  = "color";
+var cmdCnt   = 0;
+var lastCmd  = "";
+var tR = 255, tG = 0, tB = 0;
+var currentImg = null;
+
+function onImageSelected(inp) {
+  if (!inp.files || !inp.files[0]) return;
+  var url = URL.createObjectURL(inp.files[0]);
+  var img = new Image();
+  img.onload = function() {
+    var mW = 320, mH = 240;
+    var sc = Math.min(mW / img.width, mH / img.height, 1);
+    canv.width  = Math.round(img.width  * sc);
+    canv.height = Math.round(img.height * sc);
+    ctx.drawImage(img, 0, 0, canv.width, canv.height);
+    currentImg = ctx.getImageData(0, 0, canv.width, canv.height);
+    var prev = document.getElementById("preview");
+    var ph   = document.getElementById("preview-ph");
+    prev.src = url; prev.style.display = "block";
+    if (ph) ph.style.display = "none";
+    document.getElementById("btn-analizar").disabled = false;
+    log("Foto: " + img.width + "x" + img.height + " px", "info");
+    setTimeout(analizarImagen, 100);
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+function toggleGaleria() {
+  var inp = document.getElementById("file-input");
+  inp.removeAttribute("capture"); inp.click();
+  setTimeout(function() { inp.setAttribute("capture", "environment"); }, 1000);
+}
+
+function analizarImagen() {
+  if (!currentImg) { log("Sin imagen", "err"); return; }
+  var res = analyzeData(currentImg);
+  updateStatus(res.det, res.conf);
+  log((res.det ? "DETECTADO" : "No detectado") + " — " + res.conf + "%", res.det ? "ok" : "info");
+  ejecutarAccion(res.det, res.conf);
+}
+function analyzeData(data) {
+  var d = data.data, total = data.width * data.height, match = 0;
+  var thr = parseInt(document.getElementById("thresh").value);
+  if (detMode === "color") {
+    var tol = parseInt(document.getElementById("color-tol").value);
+    for (var i = 0; i < d.length; i += 4)
+      if (Math.abs(d[i]-tR) < tol && Math.abs(d[i+1]-tG) < tol && Math.abs(d[i+2]-tB) < tol) match++;
+    return { det: Math.round(match / total * 100) >= thr, conf: Math.round(match / total * 100) };
+  } else if (detMode === "line") {
+    var lt = parseInt(document.getElementById("line-thr").value);
+    var ys = Math.floor(data.height * 0.35), ye = Math.floor(data.height * 0.65), cnt = 0, tot = 0;
+    for (var y = ys; y < ye; y++) for (var x = 0; x < data.width; x++) {
+      var idx = (y * data.width + x) * 4;
+      if ((d[idx] + d[idx+1] + d[idx+2]) / 3 < lt) cnt++;
+      tot++;
+    }
+    return { det: Math.round(cnt / tot * 100) >= thr, conf: Math.round(cnt / tot * 100) };
+  } else if (detMode === "bright") {
+    var sum = 0;
+    for (var i = 0; i < d.length; i += 4) sum += (d[i] + d[i+1] + d[i+2]) / 3;
+    var c = Math.round(sum / total / 2.55);
+    return { det: c >= parseInt(document.getElementById("bright-thr").value), conf: c };
+  } else if (detMode === "rojo") {
+    var r = 0, b = 0;
+    for (var i = 0; i < d.length; i += 4) {
+      if (d[i] > 150 && d[i+1] < 100 && d[i+2] < 100) r++;
+      if (d[i+2] > 150 && d[i] < 100 && d[i+1] < 100) b++;
+    }
+    var c = Math.round(r / total * 100);
+    return { det: c >= thr, conf: c };
+  }
+  return { det: false, conf: 0 };
+}
+function updateStatus(det, conf) {
+  var ind = document.getElementById("det-ind");
+  var lbl = document.getElementById("det-lbl");
+  var ce  = document.getElementById("det-conf");
+  if (ind) ind.className = "dot-det " + (det ? "on" : "off");
+  if (lbl) lbl.textContent = det ? "DETECTADO" : "Sin deteccion";
+  if (ce)  ce.textContent  = conf + "%";
+  document.getElementById("ai-bdg").textContent = det ? "DETECTADO" : "VISION";
+}
+function pickColorFromImage() {
+  if (!currentImg) { log("Sin imagen", "err"); return; }
+  var cx = Math.floor(currentImg.width / 2), cy = Math.floor(currentImg.height / 2);
+  var d = currentImg.data, idx = (cy * currentImg.width + cx) * 4;
+  tR = d[idx]; tG = d[idx+1]; tB = d[idx+2];
+  var h = "#" + ("0" + tR.toString(16)).slice(-2)
+              + ("0" + tG.toString(16)).slice(-2)
+              + ("0" + tB.toString(16)).slice(-2);
+  document.getElementById("target-color").value = h;
+  log("Color tomado: RGB(" + tR + "," + tG + "," + tB + ")", "info");
+}
+function updateTargetColor(h) {
+  tR = parseInt(h.slice(1,3), 16);
+  tG = parseInt(h.slice(3,5), 16);
+  tB = parseInt(h.slice(5,7), 16);
+}
+function ejecutarAccion(det, conf) {
+  var on  = document.getElementById("act-on").value;
+  var off = document.getElementById("act-off").value;
+  var spd = document.getElementById("ai-spd").value;
+  var c   = det ? on : off;
+  if (c !== lastCmd) {
+    lastCmd = c;
+    if (c === "s") fetch("/st");
+    else if (c !== "none") { fetch("/mv?d=" + c); fetch("/spd?val=" + spd); }
+    var dirs = { f:"ADELANTE", b:"ATRAS", l:"IZQ", r:"DER", s:"PARAR", none:"-" };
+    log((det ? "DET" : "No") + "(" + conf + "%) → " + (dirs[c] || c), "ok");
+    cmdCnt++;
+    var cc = document.getElementById("cmd-cnt"); if (cc) cc.textContent = cmdCnt;
+  }
+}
+function setDetMode(m) {
+  detMode = m;
+  ["color","line","bright","rojo"].forEach(function(id) {
+    var el  = document.getElementById("mode-" + id);
+    if (el)  el.className = "det-mode" + (id === m ? " sel" : "");
+    var cfg = document.getElementById("cfg-" + id);
+    if (cfg) cfg.style.display = id === m ? "block" : "none";
+  });
+}
+function cmd(d) { fetch("/mv?d=" + d); }
+function log(msg, type) {
+  var el = document.getElementById("cmd-log");
+  var ts = new Date().toLocaleTimeString("es-AR", { hour12: false });
+  var div = document.createElement("div");
+  div.className = "cmd-" + (type || "info");
+  div.textContent = "[" + ts + "] " + msg;
+  el.appendChild(div); el.scrollTop = el.scrollHeight;
+  while (el.children.length > 50) el.removeChild(el.firstChild);
+}
+function clearLog() {
+  document.getElementById("cmd-log").innerHTML = "";
+  cmdCnt = 0; lastCmd = "";
+  document.getElementById("cmd-cnt").textContent = "0";
+}
+</script>
+</body></html>
