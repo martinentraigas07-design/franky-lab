@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Proyecto</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Proyecto FRANKY</div></div>
+  <div class="bdg">PROYECTO</div>
+</div>
+<div class="wrap">
+
+<div class="card">
+  <div class="ct">Que es un Proyecto FRANKY?</div>
+  <p style="font-size:12px;color:var(--txt2)">Es un archivo <b>.franky</b> con la configuracion completa: Sumo (Mini y Micro),
+  la conexion I2C/SPI, el ajuste (trim) de los motores, y tu programa de Bloques.</p>
+  <p style="font-size:12px;color:var(--txt2);margin-top:6px">Esta pagina exporta esa configuracion a un archivo que podes guardar,
+  o trae de vuelta un proyecto que ya tenias guardado.</p>
+</div>
+
+<div class="card">
+  <div class="ct">Nombre del Proyecto</div>
+  <input type="text" id="nombre-proyecto" placeholder="Ej: Mi Sumo Azul" oninput="guardarNombre()">
+</div>
+
+<div class="card">
+  <div class="ct">Resumen del Proyecto Actual</div>
+  <div class="st"><span class="sl">Sumo Mini</span><span class="sv" id="res-mini">cargando...</span></div>
+  <div class="st"><span class="sl">Sumo Micro</span><span class="sv" id="res-micro">cargando...</span></div>
+  <div class="st"><span class="sl">Bus I2C</span><span class="sv" id="res-i2c">cargando...</span></div>
+  <div class="st"><span class="sl">Bus SPI</span><span class="sv" id="res-spi">cargando...</span></div>
+  <div class="st"><span class="sl">Trim motores</span><span class="sv" id="res-trim">cargando...</span></div>
+  <div class="st"><span class="sl">Programa de Bloques</span><span class="sv" id="res-bloques">cargando...</span></div>
+  <div class="ib" style="margin-top:10px">
+    El programa de Bloques se toma preferentemente del "Programa Fuente" guardado en este
+    Laboratorio (ver <a data-app-href="programa.html">Programa</a>) — igual que en el Server
+    real, con la diferencia de que acá vive en memoria de esta sesion, no en SPIFFS fisico. Si
+    todavia no hay nada guardado ahi, se usa como respaldo el que este en este navegador.
+  </div>
+</div>
+
+<div class="card">
+  <div class="ct">Exportar</div>
+  <p style="font-size:12px;color:var(--txt2)">Descarga un archivo <code>.franky</code> con todo lo de arriba.</p>
+  <button class="btn ba" onclick="exportarProyecto()">&#128190; Exportar Proyecto (.franky)</button>
+</div>
+
+<div class="card">
+  <div class="ct">Importar</div>
+  <p style="font-size:12px;color:var(--txt2)">Elegi un archivo <code>.franky</code> guardado antes. Primero se
+  revisa todo el archivo — si algo no es valido, <b>no se cambia nada</b>.</p>
+  <button class="btn bi" onclick="document.getElementById('archivo-proyecto').click()">&#128193; Elegir archivo .franky</button>
+  <input type="file" id="archivo-proyecto" accept=".franky,.json" style="display:none" onchange="seleccionArchivoProyecto(this)">
+
+  <div id="import-confirm" style="display:none;margin-top:10px">
+    <div class="bw">
+      Proyecto leido: <b id="import-nombre">-</b><br>
+      Programa de Bloques: <span id="import-bloques">-</span><br><br>
+      Al confirmar, esto <b>reemplaza</b> la configuracion de Sumo (Mini y Micro), I2C/SPI y trim
+      de motores en este Laboratorio. El programa de Bloques del archivo (si trae uno) queda
+      disponible para cargar desde <a data-app-href="bloques.html" style="color:#ffd54f">Programacion Bloques</a>.
+    </div>
+    <div class="row">
+      <button class="btn bg" onclick="cancelarImportacion()">Cancelar</button>
+      <button class="btn bd" onclick="confirmarImportacion()">Confirmar Importacion</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ct">Nuevo Proyecto</div>
+  <p style="font-size:12px;color:var(--txt2)">Limpia el nombre guardado en este navegador para empezar de cero.
+  No toca la configuracion de Sumo/I2C/Trim (eso se cambia desde sus propias paginas).</p>
+  <button class="btn bg" onclick="nuevoProyecto()">&#128203; Nuevo Proyecto</button>
+</div>
+
+<div class="card">
+  <div class="ct">Estado</div>
+  <div class="st"><span class="sl" id="st-txt">Listo</span><span class="sv chip cac" id="st-dot">-</span></div>
+</div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<script>
+FRANKY_BASE.rewriteDom();
+if (typeof Monitor !== "undefined") Monitor.setContext("Proyecto");
+
+function g(id){ return document.getElementById(id); }
+
+function setStatus(msg, tipo){
+  g("st-txt").textContent = msg;
+  g("st-dot").textContent = tipo==="ok" ? "OK" : tipo==="err" ? "ERROR" : tipo==="wait" ? "..." : "-";
+  g("st-dot").className = "chip " + (tipo==="ok" ? "cok" : tipo==="err" ? "cda" : "cac");
+}
+
+function cargarNombreGuardado(){
+  if (typeof FrankyPrefs === "undefined") return;
+  var n = FrankyPrefs.get("proyecto.nombre", "");
+  if (n) g("nombre-proyecto").value = n;
+}
+function guardarNombre(){
+  if (typeof FrankyPrefs === "undefined") return;
+  FrankyPrefs.set("proyecto.nombre", g("nombre-proyecto").value);
+}
+
+// Mismo respaldo local que ya usa bloques.html (CAPA 4) — nunca se
+// inventa un segundo lugar donde vivir el XML del workspace.
+function leerBlocklyLocal(){
+  if (typeof FrankyPrefs === "undefined") return null;
+  return FrankyPrefs.get("bloques.workspaceXML", null);
+}
+function contarBloques(xml){
+  if (!xml) return 0;
+  var m = xml.match(/<block\b/g);
+  return m ? m.length : 0;
+}
+function textoSensor(t){
+  return t===0 ? "Sonar" : t===1 ? "Optico" : "Sharp";
+}
+
+function actualizarResumen(){
+  Promise.all([
+    fetch("/proyecto/export").then(function(r){ return r.json(); }),
+    fetch("/bloques/xml").then(function(r){ return r.json(); }).catch(function(){ return {existe:false}; })
+  ]).then(function(res){
+    var d = res[0], progFuente = res[1];
+    g("res-mini").textContent  = textoSensor(d.sumo.mini.tipoDistSensor)  + " · ataque " + d.sumo.mini.spdAtaque;
+    g("res-micro").textContent = textoSensor(d.sumo.micro.tipoDistSensor) + " · ataque " + d.sumo.micro.spdAtaque;
+    g("res-i2c").textContent = d.i2c.enabled ? ("habilitado (SDA=GPIO" + d.i2c.sda + " SCL=GPIO" + d.i2c.scl + ")") : "deshabilitado";
+    g("res-spi").textContent = d.spi.enabled ? "habilitado" : "deshabilitado";
+    g("res-trim").textContent = "A=" + d.trim.motorA + "  B=" + d.trim.motorB;
+    var xmlLocal = leerBlocklyLocal();
+    if (progFuente && progFuente.existe && progFuente.xml){
+      g("res-bloques").textContent = contarBloques(progFuente.xml) + " bloque(s) — Programa Fuente de este Laboratorio" +
+        ((xmlLocal && xmlLocal.trim() !== progFuente.xml.trim()) ? " (distinto al de este navegador)" : "");
+    } else if (xmlLocal) {
+      g("res-bloques").textContent = contarBloques(xmlLocal) + " bloque(s) guardado(s) solo en este navegador";
+    } else {
+      g("res-bloques").textContent = "sin programa guardado";
+    }
+  }).catch(function(){
+    setStatus("No se pudo leer el estado actual", "err");
+  });
+}
+
+function exportarProyecto(){
+  setStatus("Exportando...", "wait");
+  fetch("/proyecto/export").then(function(r){ return r.json(); }).then(function(d){
+    // El backend no persiste el XML del "robot" (ver firmware/proyecto.ts,
+    // nota de alcance) — esta pagina lo completa acá mismo, tomando
+    // preferentemente el Programa Fuente guardado en el Laboratorio y,
+    // si no hay, el respaldo local del navegador.
+    return fetch("/bloques/xml").then(function(r2){ return r2.json(); }).catch(function(){ return {existe:false}; })
+      .then(function(progFuente){
+        d.blockly = d.blockly || {};
+        d.blockly.xml = (progFuente && progFuente.existe) ? progFuente.xml : leerBlocklyLocal();
+        var nombre = g("nombre-proyecto").value || "franky_proyecto";
+        var txt = JSON.stringify(d, null, 2);
+        var blob = new Blob([txt], {type:"application/json"});
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = nombre.replace(/[^a-zA-Z0-9_-]/g,"_") + ".franky";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setStatus("Proyecto exportado", "ok");
+      });
+  }).catch(function(e){ setStatus("Error al exportar: "+e.message, "err"); });
+}
+
+var _proyectoAImportar = null;
+function seleccionArchivoProyecto(input){
+  var f = input.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    var datos;
+    try { datos = JSON.parse(reader.result); }
+    catch(e) { setStatus("El archivo no es JSON valido", "err"); return; }
+    _proyectoAImportar = datos;
+    g("import-nombre").textContent = f.name;
+    g("import-bloques").textContent = (datos.blockly && datos.blockly.xml) ? (contarBloques(datos.blockly.xml) + " bloque(s)") : "sin programa en el archivo";
+    g("import-confirm").style.display = "block";
+  };
+  reader.readAsText(f);
+}
+function cancelarImportacion(){
+  _proyectoAImportar = null;
+  g("import-confirm").style.display = "none";
+  g("archivo-proyecto").value = "";
+}
+function confirmarImportacion(){
+  if (!_proyectoAImportar) return;
+  setStatus("Importando...", "wait");
+  fetch("/proyecto/import", { method: "POST", headers: {"Content-Type":"application/x-www-form-urlencoded"},
+    body: "plain=" + encodeURIComponent(JSON.stringify(_proyectoAImportar)) })
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+    .then(function(res){
+      if (!res.ok) { setStatus("Rechazado: " + (res.data.error||"error desconocido"), "err"); return; }
+      // Si el archivo trae Blockly XML, queda disponible como respaldo
+      // local para que bloques.html lo pueda cargar (el backend valida
+      // el XML pero no lo aplica — ver firmware/proyecto.ts).
+      if (res.data.blockly && res.data.blockly.blocklyXml && typeof FrankyPrefs !== "undefined") {
+        FrankyPrefs.set("bloques.workspaceXML", res.data.blockly.blocklyXml);
+      }
+      setStatus("Proyecto importado", "ok");
+      cancelarImportacion();
+      actualizarResumen();
+    }).catch(function(e){ setStatus("Error al importar: "+e.message, "err"); });
+}
+
+function nuevoProyecto(){
+  if (typeof FrankyPrefs !== "undefined") FrankyPrefs.set("proyecto.nombre", "");
+  g("nombre-proyecto").value = "";
+  setStatus("Nuevo proyecto (solo nombre local)", "ok");
+}
+
+cargarNombreGuardado();
+actualizarResumen();
+</script>
+</body></html>

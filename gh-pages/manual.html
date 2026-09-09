@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Manual de Uso</title>
+<script>
+document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<style>
+h3{font-size:14px;color:var(--acc2);margin:10px 0 6px;}
+p,li{font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:6px;}
+ul{padding-left:16px;margin-bottom:8px;}
+.code{background:#0d1117;border:1px solid var(--brd);border-radius:6px;padding:10px;
+  font-family:monospace;font-size:12px;color:#79c0ff;white-space:pre;overflow-x:auto;margin:7px 0;}
+.msec{border-left:3px solid var(--acc);padding-left:10px;margin-bottom:12px;}
+.blk-prog{background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:12px;margin:8px 0;}
+.blk-prog .titulo{font-size:13px;font-weight:700;color:var(--ok);margin-bottom:6px;}
+.blk-prog .blk{display:inline-block;padding:3px 10px;border-radius:4px;font-size:12px;
+  font-weight:700;margin:2px 2px;cursor:default;}
+.blk-m{background:#e05a0033;color:#ff7a1a;border:1px solid #e05a00;}
+.blk-t{background:#ff980033;color:#ffcc00;border:1px solid #ff9800;}
+.blk-s{background:#00897b33;color:#4db6ac;border:1px solid #00897b;}
+.blk-c{background:#1565c033;color:#64b5f6;border:1px solid #1565c0;}
+.blk-v{background:#2e7d3233;color:#81c784;border:1px solid #2e7d32;}
+.blk-l{background:#fdd83533;color:#fff176;border:1px solid #fdd835;}
+.pin-info{display:inline-block;background:var(--bg3);border:1px solid var(--brd);
+  border-radius:4px;padding:2px 8px;font-size:11px;font-family:monospace;margin:1px;}
+.srv-box{background:var(--bg3);border:1px solid var(--acc);border-radius:8px;padding:14px;margin:8px 0;}
+.srv-box .srv-ttl{font-size:13px;font-weight:700;color:var(--acc);margin-bottom:6px;}
+.tip{background:#1565c015;border:1px solid #1565c0;border-radius:6px;padding:9px 12px;margin:7px 0;font-size:12px;color:var(--txt2);}
+</style>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Manual de Uso</div></div>
+  <div class="bdg">MANUAL</div>
+</div>
+<div class="wrap">
+
+<!-- SERVIDOR WEB -->
+<div class="card"><div class="ct">0. Que es el Servidor Web de Franky?</div>
+<div class="msec">
+<div class="srv-box">
+<div class="srv-ttl">&#127760; Servidor HTTP embebido en el ESP32-C3</div>
+<p>El ESP32-C3 corre un servidor web real dentro del microcontrolador. No necesita internet, nube, ni computadora intermediaria. El robot <b>es</b> el servidor: genera y entrega todas las paginas desde su memoria interna (SPIFFS).</p>
+<p>Cuando conectas el celular a la red Wi-Fi <b>Franky_4.0</b> y abres <b>http://192.168.4.1</b>, tu navegador esta hablando directamente con el chip del robot.</p>
+</div>
+
+<h3>Como funciona (sin magia)</h3>
+<ul>
+  <li>El ESP32-C3 crea una red Wi-Fi propia (modo Access Point — sin router externo).</li>
+  <li>Cualquier dispositivo que se conecte a esa red queda en la misma subred <b>192.168.4.x</b>.</li>
+  <li>El firmware escucha en el puerto 80 (HTTP estandar) y responde a solicitudes del navegador.</li>
+  <li>Los archivos HTML, CSS y JS se guardan en la particion SPIFFS del chip y se sirven como si fuera un hosting clasico.</li>
+  <li>Los comandos (mover, leer sensores, ejecutar programas) llegan como peticiones HTTP GET sencillas: <code style="background:#0d1117;padding:2px 6px;border-radius:3px;font-size:11px;color:#79c0ff">/mv?d=f</code>, <code style="background:#0d1117;padding:2px 6px;border-radius:3px;font-size:11px;color:#79c0ff">/api</code>, etc.</li>
+</ul>
+
+<h3>Por que HTTP y no HTTPS?</h3>
+<p>El cifrado SSL/TLS requiere mucha memoria RAM y poder de computo. El ESP32-C3 tiene 400 KB de RAM — suficiente para el servidor, los motores y los sensores, pero no para una pila TLS completa. Ademas, en una red local privada sin datos sensibles, HTTP es completamente adecuado.</p>
+<div class="tip">&#128161; <b>Dato importante:</b> Chrome bloquea el acceso a la camara del navegador en sitios HTTP (no HTTPS). Por eso el modulo de camara no se incluye en esta version.</div>
+
+<h3>Ventajas para educacion</h3>
+<ul>
+  <li><b>Sin dependencias externas:</b> funciona en un aula sin internet, con cualquier celular o computadora.</li>
+  <li><b>Interfaz grafica accesible:</b> cualquier alumno puede controlar el robot desde su dispositivo sin instalar nada.</li>
+  <li><b>API REST visible:</b> los alumnos pueden ver exactamente que comandos se envian al robot, ideal para aprender redes y protocolos.</li>
+  <li><b>Programacion sin cable:</b> el editor de bloques corre en el navegador y envía el programa al robot por Wi-Fi.</li>
+  <li><b>Multidispositivo:</b> varios celulares pueden conectarse a la vez (solo uno controla los motores a la vez por seguridad).</li>
+  <li><b>Transparencia tecnica:</b> se puede inspeccionar el trafico HTTP con herramientas del navegador, excelente para materias de redes.</li>
+</ul>
+</div></div>
+
+<!-- CONEXION -->
+<div class="card"><div class="ct">1. Conexion Wi-Fi</div>
+<div class="msec">
+<h3>Como conectarse</h3>
+<ul>
+  <li>Energizar la placa con bateria LiPo 2S (7.4V) o USB-C.</li>
+  <li>En el dispositivo buscar la red Wi-Fi y conectarse:</li>
+</ul>
+<div class="code">SSID: Franky_4.0
+Password: 12345678
+IP: 192.168.4.1</div>
+<ul>
+  <li>Abrir el navegador y escribir exactamente: <b>http://192.168.4.1</b></li>
+  <li>Importante: escribir <b>http://</b> (no https). Usar Firefox si Chrome no abre.</li>
+</ul>
+<h3>Estructura de paginas</h3>
+<ul>
+  <li><b>/</b> — Menu principal con estado del sistema</li>
+  <li><b>/gamepad.html</b> — Control manual con D-pad y joystick</li>
+  <li><b>/sumo.html</b> — Modos Microsumo y Minisumo LNR</li>
+  <li><b>/bloques.html</b> — Editor de programacion con bloques</li>
+  <li><b>/auto.html</b> — Automatizaciones predefinidas</li>
+  <li><b>/panel.html</b> — Panel industrial con monitores y sensores</li>
+  <li><b>/manual.html</b> — Este manual</li>
+</ul>
+</div></div>
+
+<!-- PINOUT -->
+<div class="card"><div class="ct">2. Mapa de Pines Franky 4.0</div>
+<div class="msec">
+<h3>Pines y sus funciones</h3>
+<table style="width:100%;font-size:12px;border-collapse:collapse">
+  <tr style="background:var(--bg3)"><th style="padding:5px 8px;text-align:left">GPIO</th><th style="padding:5px 8px;text-align:left">Tipo</th><th style="padding:5px 8px;text-align:left">Funcion en Franky</th><th style="padding:5px 8px;text-align:left">Disponible para sensor</th></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO0</td><td>ADC0</td><td>Sensor distancia sumo</td><td style="color:var(--ok)">Si — analogico</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO1</td><td>ADC1</td><td>Sensor borde / ADC sec.</td><td style="color:var(--ok)">Si — analogico</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO2/3</td><td>PWM</td><td>Motor B (IN2/IN1)</td><td style="color:var(--danger)">No — motor</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO4/5</td><td>PWM</td><td>Motor A (IN2/IN1)</td><td style="color:var(--danger)">No — motor</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO6/7</td><td>DIG</td><td>I2C SDA/SCL</td><td style="color:var(--warn)">Si — digital (I2C off)</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO8</td><td>DIG</td><td>LED interno (invertido)</td><td style="color:var(--warn)">Con precaucion</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO9</td><td>DIG</td><td>Pulsador Start integrado</td><td style="color:var(--ok)">Si — entrada digital</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO10</td><td>DIG</td><td>SPI CS</td><td style="color:var(--warn)">Si — digital (SPI off)</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">GPIO20/21</td><td>DIG</td><td>SPI SCLK/MOSI</td><td style="color:var(--warn)">Si — digital (SPI off)</td></tr>
+</table>
+<p style="margin-top:6px;color:var(--warn)">&#9888; Todos los pines son 3.3V. No conectar senales de 5V directamente.</p>
+</div></div>
+
+<!-- GAMEPAD -->
+<div class="card"><div class="ct">3. Gamepad — Control Manual</div>
+<div class="msec">
+<h3>Modos de control</h3>
+<ul>
+  <li><b>D-PAD:</b> Cuatro botones de direccion. Mantener presionado = movimiento continuo. Soltar = frena.</li>
+  <li><b>Joystick virtual:</b> Arrastrarlo en cualquier direccion. Suelta el dedo = para el robot.</li>
+  <li><b>Turbo:</b> Boton adelante a velocidad maxima (255 PWM = 20 kHz).</li>
+</ul>
+<h3>Slider de velocidad</h3>
+<p>Controla el duty cycle del PWM (0-255). Al 100% la frecuencia es 20 kHz — inaudible. Recomendado: 60-80% para maniobras de precision.</p>
+<h3>Ejemplo de uso educativo</h3>
+<ul>
+  <li>Conectar el robot y moverlo con el D-pad.</li>
+  <li>Observar en el Panel Industrial los valores ADC mientras el robot avanza.</li>
+  <li>Colocar la mano frente al sensor IR y ver como cambia el ADC0.</li>
+</ul>
+</div></div>
+
+<!-- PANEL -->
+<div class="card"><div class="ct">4. Panel Industrial</div>
+<div class="msec">
+<h3>Monitor de entradas analogicas</h3>
+<p>Muestra ADC0 (GPIO0) y ADC1 (GPIO1) en tiempo real con barra de progreso. Rango 0-4095 (0V-3.3V).</p>
+<h3>Monitor de entradas digitales</h3>
+<p>Muestra el estado (0/1) de GPIO9 (pulsador Start) y los pines de buses cuando estan deshabilitados. Los pines del motor no se pueden leer.</p>
+<h3>Sensor ultrasonico HC-SR04</h3>
+<ul>
+  <li>Elegir pines TRIG y ECHO del dropdown (solo pines disponibles segun buses).</li>
+  <li>Activar con el boton. Muestra distancia en cm y barra visual.</li>
+  <li>Requiere NewPing instalada en Arduino IDE.</li>
+</ul>
+<h3>Conexion HC-SR04</h3>
+<div class="code">HC-SR04 → Franky 4.0
+VCC   → 3.3V (o 5V si se usa divisor de tension en ECHO)
+GND   → GND
+TRIG  → GPIO20 (SPI off) o GPIO6 (I2C off)
+ECHO  → GPIO21 (SPI off) o GPIO7 (I2C off)
+Nota: si se usa 5V en VCC, poner divisor resistivo en ECHO
+      ECHO → R1(1kΩ) → GPIO → R2(2kΩ) → GND</div>
+<h3>Sensor DHT22 — temperatura y humedad</h3>
+<div class="code">DHT22 → Franky 4.0
+VCC  → 3.3V
+GND  → GND
+DATA → GPIO3 (compilado, 1-Wire)
+      + resistencia 10kΩ entre DATA y 3.3V (pull-up)</div>
+<h3>LED y brillo</h3>
+<p>GPIO8 usa logica invertida. El slider de brillo ajusta el PWM automaticamente (0%=apagado, 100%=maximo brillo).</p>
+</div></div>
+
+<!-- SUMO -->
+<div class="card"><div class="ct">5. Modo Sumo LNR</div>
+<div class="msec">
+<h3>Microsumo — configuracion de sensores</h3>
+<p>El ESP32-C3 solo tiene 2 entradas analogicas (ADC0 y ADC1). Para microsumo ambas son analogicas:</p>
+<ul>
+  <li><b>ADC0 (GPIO0):</b> Sensor de distancia frontal — detecta al oponente. Tipicamente un sensor IR como GP2Y0A21 o TCRT5000.</li>
+  <li><b>ADC1 (GPIO1):</b> Sensor de borde del dojo — detecta la linea blanca. TCRT5000 en modo analogico.</li>
+</ul>
+<h3>Calibracion de umbrales</h3>
+<ul>
+  <li>Abrir el Panel Industrial para ver los valores ADC en tiempo real.</li>
+  <li>Poner el robot en el dojo y anotar el valor cuando el sensor esta sobre el negro.</li>
+  <li>Poner el sensor sobre la linea blanca y anotar ese valor.</li>
+  <li>El umbral de borde debe estar entre esos dos valores.</li>
+</ul>
+<div class="code">Ejemplo tipico TCRT5000 en modo analogico:
+  Sobre negro (dojo): ADC ~300-800
+  Sobre blanco (borde): ADC ~2500-3500
+  → Umbral borde recomendado: 1500</div>
+<h3>Minisumo — sensores digitales de borde</h3>
+<p>Para minisumo con 4 sensores: los 2 ADC van para distancia y los sensores de borde deben tener salida digital. Usar TCRT5000 + LM393 (comparador) o modulos con potenciometro de calibracion integrado.</p>
+<h3>Inicio y combate</h3>
+<ul>
+  <li>Presionar INICIAR en la pagina Sumo.</li>
+  <li>El LED parpadea durante 5 segundos (reglamento LNR).</li>
+  <li>Al terminar el conteo el robot arranca automaticamente.</li>
+  <li>Para detener: presionar DETENER en la pagina (el robot sigue el reglamento de no-conexion externa durante el combate).</li>
+</ul>
+</div></div>
+
+<!-- BLOQUES -->
+<div class="card"><div class="ct">6. Programacion con Bloques</div>
+<div class="msec">
+<h3>Requisito: internet la primera vez</h3>
+<p>Blockly se carga desde internet (unpkg.com). La primera vez que abres /bloques.html el celular necesita tener datos moviles o Wi-Fi a internet activos. Despues queda en cache del navegador.</p>
+<h3>Categorias de bloques</h3>
+<ul>
+  <li><b>Motores</b> (naranja): adelante, atras, giro, freno, PWM directo por canal</li>
+  <li><b>Servo</b>: mover a angulo, barrido entre dos angulos</li>
+  <li><b>GPIO/Salidas</b>: digital HIGH/LOW, PWM configurable, LED</li>
+  <li><b>Sensores</b>: leer ADC, digital, ultrasonico, DHT22</li>
+  <li><b>PID *</b>: configurar Kp/Ki/Kd, iniciar, detener (solo codigo C++)</li>
+  <li><b>OLED I2C *</b>: texto, numeros, formas (solo codigo C++)</li>
+  <li><b>Decision</b>: si sensor mayor/menor/igual, comparaciones, AND/OR</li>
+  <li><b>Control</b>: repetir N veces, mientras sensor, for, while</li>
+  <li><b>Variables</b>: asignar, incrementar, decrementar</li>
+  <li><b>Matematicas</b>: map(), constrain(), operaciones</li>
+  <li><b>Tiempo</b>: esperar ms, esperar us, leer millis()</li>
+  <li><b>Serial</b>: imprimir texto y valores para debug</li>
+</ul>
+<p style="font-size:11px;color:var(--warn)">* Bloques marcados con * generan solo codigo C++ (requieren librerias adicionales). Se pueden ver en la pestana "Codigo C++" pero no ejecutan en el interprete del ESP32.</p>
+
+<h3>Botones del editor: Ejemplos y Guardar XML</h3>
+<div class="tip">&#9888; Los botones <b>Ej: Va y vuelve</b>, <b>Ej: Evasion</b> y <b>XML</b> solo funcionan correctamente cuando Blockly termino de cargar. Si se hace clic antes de que la barra de progreso desaparezca, el boton no hara nada. Esperar a que aparezca el area de bloques.</div>
+<ul>
+  <li><b>Ej: Va y vuelve</b> — Carga en el workspace el programa de ejemplo basico: adelante 500ms, atras 500ms, repite. Util como punto de partida para principiantes.</li>
+  <li><b>Ej: Evasion</b> — Carga el programa de evasion de obstaculos: si ADC0 supera 2500 gira a la derecha, si no avanza. Sirve para demostrar sensores y logica condicional.</li>
+  <li><b>&#128190; XML</b> — Descarga el programa actual del workspace como archivo <b>franky_programa.xml</b> en tu dispositivo. El XML es el formato nativo de Blockly: guarda la estructura exacta de los bloques (posicion, tipo, valores) para poder recargarla despues.</li>
+</ul>
+
+<h3>Para que sirve guardar en XML?</h3>
+<ul>
+  <li><b>Persistencia:</b> el workspace de Blockly no se guarda automaticamente en el ESP32. Si cierras el navegador, el programa se pierde. El XML es el respaldo.</li>
+  <li><b>Compartir entre alumnos:</b> un alumno puede guardar su programa, enviarlo por mensaje o correo, y otro alumno puede cargarlo en su propio Franky.</li>
+  <li><b>Iteracion pedagogica:</b> guardar versiones distintas del mismo programa (v1, v2, v3) y comparar como evolucionan.</li>
+  <li><b>Archivo de trabajos:</b> el docente puede coleccionar los XML de todos los alumnos como entregable de la actividad.</li>
+</ul>
+<div class="tip">&#128161; Para recargar un XML guardado: proximamente se agregara el boton <b>Cargar XML</b>. Por ahora, abrir el archivo .xml con un editor de texto, copiar el contenido, y pegarlo en la consola del navegador con <code style="background:#0d1117;padding:2px 5px;border-radius:3px;font-size:11px;color:#79c0ff">Blockly.Xml.clearWorkspaceAndLoadFromXml(...)</code>.</div>
+</div></div>
+
+<!-- EJEMPLOS BLOQUES -->
+<div class="card"><div class="ct">7. Ejemplos de Programas en Bloques</div>
+<div class="msec">
+
+<h3>Ejemplo 1 — Va y vuelve (basico)</h3>
+<div class="blk-prog">
+  <div class="titulo">El robot avanza 500ms, retrocede 500ms, y repite.</div>
+  <span class="blk blk-m">Adelante 200</span>→
+  <span class="blk blk-t">Esperar 500ms</span>→
+  <span class="blk blk-m">Atras 200</span>→
+  <span class="blk blk-t">Esperar 500ms</span>→
+  <span class="blk blk-m">Parar</span>→
+  <span class="blk blk-c">FIN (repite)</span>
+</div>
+
+<h3>Ejemplo 2 — Evasion de obstaculos</h3>
+<div class="blk-prog">
+  <div class="titulo">Si detecta objeto cerca (ADC0 alto), gira; si no, avanza.</div>
+  <span class="blk blk-c">Si ADC0 &gt; 2500</span>→
+  <span class="blk blk-m">Girar derecha 180</span>→
+  <span class="blk blk-t">Esperar 300ms</span><br>
+  <span class="blk blk-m">Adelante 180</span>→
+  <span class="blk blk-t">Esperar 100ms</span>→
+  <span class="blk blk-c">FIN (repite)</span>
+</div>
+<div class="code">// Codigo C++ equivalente:
+void loop() {
+  if(analogRead(PIN_ADC0) > 2500) {
+    move("r", 180);
+    delay(300);
+  }
+  move("f", 180);
+  delay(100);
+}</div>
+
+<h3>Ejemplo 3 — Control de LED con sensor</h3>
+<div class="blk-prog">
+  <div class="titulo">El LED se enciende cuando hay un objeto frente al robot.</div>
+  <span class="blk blk-c">Si ADC0 &gt; 2000</span>→
+  <span class="blk blk-l">LED Encender</span><br>
+  <span class="blk blk-c">Si ADC0 &lt; 2000</span>→
+  <span class="blk blk-l">LED Apagar</span>→
+  <span class="blk blk-t">Esperar 50ms</span>→
+  <span class="blk blk-c">FIN</span>
+</div>
+
+<h3>Ejemplo 4 — Zigzag temporizado</h3>
+<div class="blk-prog">
+  <div class="titulo">El robot hace un zigzag 5 veces.</div>
+  <span class="blk blk-c">Repetir 5 veces:</span><br>
+  &nbsp;&nbsp;<span class="blk blk-m">Adelante 200</span>→
+  <span class="blk blk-t">Esperar 400ms</span>→
+  <span class="blk blk-m">Girar izquierda 200</span>→
+  <span class="blk blk-t">Esperar 200ms</span>→
+  <span class="blk blk-m">Adelante 200</span>→
+  <span class="blk blk-t">Esperar 400ms</span>→
+  <span class="blk blk-m">Girar derecha 200</span>→
+  <span class="blk blk-t">Esperar 200ms</span><br>
+  <span class="blk blk-m">Parar</span>
+</div>
+
+<h3>Ejemplo 5 — Seguidor de linea basico</h3>
+<div class="blk-prog">
+  <div class="titulo">ADC0 es sensor de linea. Valor bajo = linea negra, alto = blanco.</div>
+  <span class="blk blk-c">Mientras ADC0 &lt; 1000</span>→ (sobre linea negra)<br>
+  &nbsp;&nbsp;<span class="blk blk-m">Adelante 150</span>→
+  <span class="blk blk-t">Esperar 20ms</span><br>
+  <span class="blk blk-c">Si ADC0 &gt; 1000</span>→ (salio de la linea)<br>
+  &nbsp;&nbsp;<span class="blk blk-m">Girar derecha 160</span>→
+  <span class="blk blk-t">Esperar 100ms</span>→
+  <span class="blk blk-c">FIN</span>
+</div>
+
+<h3>Ejemplo 6 — Variable acumuladora</h3>
+<div class="blk-prog">
+  <div class="titulo">Contar cuantas veces el sensor detecta algo y parpadear el LED.</div>
+  <span class="blk blk-v">Variable contador = 0</span><br>
+  <span class="blk blk-c">Si ADC0 &gt; 2500</span>→
+  <span class="blk blk-v">contador += 1</span>→
+  <span class="blk blk-l">LED Encender</span>→
+  <span class="blk blk-t">Esperar 200ms</span>→
+  <span class="blk blk-l">LED Apagar</span><br>
+  <span class="blk blk-t">Esperar 100ms</span>→
+  <span class="blk blk-c">FIN</span>
+</div>
+
+<h3>Ejemplo 7 — Servo como barrera</h3>
+<div class="blk-prog">
+  <div class="titulo">Servo en GPIO3. Se abre cuando detecta proximidad, se cierra si no.</div>
+  <span class="blk blk-c">Si ADC0 &gt; 2000</span><br>
+  &nbsp;&nbsp;<span class="blk blk-m">Servo GPIO3 → 90°</span>→
+  <span class="blk blk-t">Esperar 2000ms</span>→
+  <span class="blk blk-m">Servo GPIO3 → 0°</span><br>
+  <span class="blk blk-t">Esperar 100ms</span>→
+  <span class="blk blk-c">FIN</span>
+</div>
+<p style="font-size:11px;color:var(--warn)">Requiere ESP32_Servo instalada (ver seccion Librerias). El bloque Servo genera codigo C++ — ver pestana Codigo C++ para el sketch completo.</p>
+
+<h3>Ejemplo 8 — Mapa de sensor a velocidad</h3>
+<div class="blk-prog">
+  <div class="titulo">La velocidad del motor varia segun la distancia al obstaculo.</div>
+  <span class="blk blk-v">Variable vel = map(ADC0, 0, 4095, 50, 255)</span><br>
+  <span class="blk blk-m">Adelante [vel]</span>→
+  <span class="blk blk-t">Esperar 50ms</span>→
+  <span class="blk blk-c">FIN</span>
+</div>
+<div class="code">// Codigo C++ equivalente:
+void loop() {
+  int vel = map(analogRead(PIN_ADC0), 0, 4095, 50, 255);
+  vel = constrain(vel, 50, 255);
+  move("f", vel);
+  delay(50);
+}</div>
+
+</div></div>
+
+<!-- API -->
+<div class="card"><div class="ct">8. API REST — Integracion Externa</div>
+<div class="msec">
+<div class="code">GET /api              — Todos los datos en JSON
+GET /mv?d=f           — Adelante
+GET /mv?d=b           — Atras
+GET /mv?d=l           — Izquierda
+GET /mv?d=r           — Derecha
+GET /st               — Parar motores
+GET /spd?val=200      — Velocidad PWM (0-255)
+GET /led/on           — LED encender
+GET /led/off          — LED apagar
+GET /led/brillo?val=N — Brillo (0=max, 255=apagado)
+GET /gpio/out?pin=N&val=V — Salida digital
+GET /sonar/read?trig=N&echo=M — Leer ultrasonico
+GET /stopall          — Parar todo + modo IDLE</div>
+
+<h3>Respuesta /api (JSON)</h3>
+<div class="code">{
+  "a0": 1234,        // ADC0 (0-4095)
+  "a1": 567,         // ADC1 (0-4095)
+  "btn": 1,          // GPIO9 Start (1=libre, 0=presionado)
+  "temp": 23.50,     // Temperatura DHT22 (C)
+  "hum": 65.20,      // Humedad DHT22 (%)
+  "mode": 0,         // Modo: 0=IDLE 1=MICRO 2=MINI...
+  "running": 0,      // Programa corriendo (0/1)
+  "proglen": 5,      // Instrucciones en NVS
+  "i2c": 0,          // I2C habilitado (0/1)
+  "spi": 0,          // SPI habilitado (0/1)
+  "dht": 1           // DHT22 OK (0/1)
+}</div>
+
+<h3>Ejemplo Python</h3>
+<div class="code">import requests, time
+
+IP = "http://192.168.4.1"
+
+# Mover robot adelante 1 segundo
+requests.get(f"{IP}/mv?d=f")
+time.sleep(1)
+requests.get(f"{IP}/st")
+
+# Leer sensores
+datos = requests.get(f"{IP}/api").json()
+print(f"ADC0: {datos['a0']}  Temp: {datos['temp']} C")</div>
+
+<h3>Ejemplo JavaScript (desde celular)</h3>
+<div class="code">// Control desde pagina web externa
+fetch("http://192.168.4.1/mv?d=f")
+  .then(() => setTimeout(() => fetch("http://192.168.4.1/st"), 1000));
+
+// Leer datos en tiempo real
+setInterval(() => {
+  fetch("http://192.168.4.1/api")
+    .then(r => r.json())
+    .then(d => console.log("ADC0:", d.a0, "Temp:", d.temp));
+}, 500);</div>
+</div></div>
+
+<!-- AUTOMATIZACIONES -->
+<div class="card"><div class="ct">9. Automatizaciones</div>
+<div class="msec">
+<h3>Vivero automatizado</h3>
+<ul>
+  <li>Sensor DHT22 en GPIO3 (1-Wire, 10kΩ pull-up a 3.3V).</li>
+  <li>Salida de riego: conectar rele en GPIO9 o GPIO libre. El rele activa una bomba o valvula.</li>
+  <li>Logica: si humedad &lt; 50% → activa riego. Ajustable en el firmware.</li>
+</ul>
+<div class="code">// Conexion DHT22
+DHT22 VCC  → 3.3V
+DHT22 GND  → GND
+DHT22 DATA → GPIO3
+            + 10kΩ entre DATA y 3.3V</div>
+
+<h3>Estacion meteorologica</h3>
+<ul>
+  <li>DHT22 para temperatura y humedad (igual al vivero).</li>
+  <li>BMP280 para presion: conectar por I2C (GPIO6 SDA, GPIO7 SCL). Habilitar I2C en Panel.</li>
+  <li>Los datos se muestran en /auto.html y se leen por /api.</li>
+</ul>
+
+<h3>Sistema de alarma</h3>
+<ul>
+  <li>Sensor PIR en GPIO0 (ADC0). Salida analogica: valor alto = movimiento.</li>
+  <li>Umbral de deteccion: ADC0 &gt; 2000 = movimiento detectado.</li>
+  <li>LED GPIO8 se enciende como indicador. Agregar buzzer en GPIO libre si se desea sonido.</li>
+</ul>
+
+<h3>Control de acceso</h3>
+<ul>
+  <li>Pulsador Start (GPIO9) como sensor de activacion.</li>
+  <li>Servo en GPIO3 como cerradura electronica (0° = cerrado, 90° = abierto).</li>
+  <li>Para RFID: modulo RC522 por SPI (GPIO1/10/20/21). Requiere SPI habilitado.</li>
+</ul>
+</div></div>
+
+<!-- LIBRERIAS -->
+<div class="card"><div class="ct">10. Librerias para Arduino IDE</div>
+<div class="msec">
+<h3>Instalacion: Herramientas → Administrar Bibliotecas</h3>
+<table style="width:100%;font-size:12px;border-collapse:collapse">
+  <tr style="background:var(--bg3)"><th style="padding:5px 8px;text-align:left">Libreria</th><th style="padding:5px 8px;text-align:left">Para que</th><th style="padding:5px 8px;text-align:left">Estado</th></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">NewPing</td><td>Sensor ultrasonico HC-SR04</td><td style="color:var(--ok)">Instalada</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">DHT sensor library (Adafruit)</td><td>Sensor DHT22 temperatura/humedad</td><td style="color:var(--ok)">Instalada</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">Adafruit GFX Library</td><td>Base para pantalla OLED</td><td style="color:var(--ok)">Instalada</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">Adafruit SSD1306</td><td>Pantalla OLED 128x64 I2C</td><td style="color:var(--ok)">Instalada</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">ESP32_Servo</td><td>Control de servomotores</td><td style="color:var(--ok)">Instalada</td></tr>
+  <tr><td style="padding:4px 8px;border-bottom:1px solid var(--brd)">PID_v1_bc (br3ttb)</td><td>Control PID de motores</td><td style="color:var(--ok)">Instalada</td></tr>
+</table>
+<div class="tip">&#9888; <b>Nombre exacto importante:</b> el firmware usa <code style="background:#0d1117;padding:2px 5px;border-radius:3px;font-size:11px;color:#79c0ff">#include &lt;ESP32_Servo.h&gt;</code> — buscar en el administrador de bibliotecas como <b>ESP32_Servo</b> (con guion bajo, no "ESP32Servo" sin guion). Igualmente, el PID se incluye como <b>PID_v1_bc</b> (variante con soporte para ESP32 de Brett Beauregard).</div>
+</div></div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+<script>FRANKY_BASE.rewriteDom();</script>
+</body></html>
