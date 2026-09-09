@@ -449,6 +449,28 @@
   </p>
 </div>
 
+<!-- ══ MODO DE INICIO (Fase "Persistencia Sumo") ══ -->
+<div class="card">
+  <div class="ct">Modo de inicio</div>
+  <p style="font-size:11px;color:var(--txt2);margin-bottom:8px">
+    Son dos permisos INDEPENDIENTES (no es "uno u otro") — igual que en el robot físico.
+  </p>
+  <div class="st">
+    <span class="sl">Iniciar desde el Servidor</span>
+    <input type="checkbox" id="chk-inicio-srv" onchange="guardarModoInicio()">
+  </div>
+  <div class="st">
+    <span class="sl">Iniciar desde el botón (GPIO9)</span>
+    <input type="checkbox" id="chk-inicio-btn" onchange="guardarModoInicio()">
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin:8px 0">
+    El botón físico onboard (GPIO9) siempre usa el perfil que ya está activo —
+    no permite elegir Mini/Micro al presionarlo, igual que en el robot real.
+  </p>
+  <button class="btn ba" id="btn-boton-virtual" onclick="pulsarBotonVirtual()" style="width:100%">🔘 BOTÓN START (simula GPIO9)</button>
+  <p id="boton-virtual-status" style="font-size:11px;color:var(--txt2);margin-top:6px"></p>
+</div>
+
 <!-- ══ 9. CONTROL ══ -->
 <div id="sec-start">
   <button class="bd" id="btn-start" onclick="iniciarSumo()">▶ INICIAR SUMO</button>
@@ -500,6 +522,11 @@ function setPerfil(p) {
   onSensorChange();
   onBordeChange();
   checkADC();
+
+  // Re-aplicar la config guardada del perfil recién seleccionado — sin
+  // esto, cambiar de pestaña Mini/Micro mostraba los valores del OTRO
+  // perfil (mismo bug de fondo que la pérdida de config al navegar).
+  if (_cfgMini || _cfgMicro) aplicarConfigPerfil(p === "mini" ? _cfgMini : _cfgMicro, p === "mini");
 }
 
 // ── Cambio de sensor de distancia ──────────────────────
@@ -799,14 +826,15 @@ function iniciarSumo() {
       alert("⚠ Error firmware: " + (d.error || "configuración rechazada"));
       return;
     }
-    return fetch(endpoint);
-  }).then(function(){
-    g("sec-stop").style.display  = "block";
-    g("sec-start").style.display = "none";
-    var lbl = PERFIL==="micro" ? "MICROSUMO" : "MINISUMO";
-    g("active-warn").textContent = "MODO ACTIVO — "+lbl+" — retardo 5 seg de seguridad...";
-    g("bdg").textContent = lbl;
-  }).catch(function(e){ alert("Error de conexión: "+e); });
+    return fetch(endpoint).then(function(r){
+      if (!r.ok) return r.json().then(function(d2){ throw new Error(d2.error || "inicio rechazado"); });
+      g("sec-stop").style.display  = "block";
+      g("sec-start").style.display = "none";
+      var lbl = PERFIL==="micro" ? "MICROSUMO" : "MINISUMO";
+      g("active-warn").textContent = "MODO ACTIVO — "+lbl+" — retardo 5 seg de seguridad...";
+      g("bdg").textContent = lbl;
+    });
+  }).catch(function(e){ alert("Error: "+e.message); });
 }
 
 function detenerSumo() {
@@ -816,6 +844,84 @@ function detenerSumo() {
     g("bdg").textContent = "IDLE";
   });
 }
+
+// ── Modo de inicio (Fase "Persistencia Sumo") ──────────────────────
+function guardarModoInicio(){
+  var srv = g("chk-inicio-srv").checked ? 1 : 0;
+  var btn = g("chk-inicio-btn").checked ? 1 : 0;
+  fetch("/sumo/config?inicioServidor="+srv+"&inicioBoton="+btn).then(function(r){return r.json();}).then(function(d){
+    if(!d.ok){ alert("Error al guardar modo de inicio: "+(d.error||"")); return; }
+    actualizarEstadoBotonVirtual();
+  });
+}
+function actualizarEstadoBotonVirtual(){
+  fetch("/api").then(function(r){return r.json();}).then(function(d){
+    var habilitado = !!d.s_inicio_btn;
+    var idle = (d.mode===0);
+    var btn = g("btn-boton-virtual");
+    btn.disabled = !habilitado;
+    btn.style.opacity = habilitado ? "1" : "0.5";
+    var st = g("boton-virtual-status");
+    if (!habilitado) st.textContent = "Deshabilitado — activá \"Iniciar desde el botón\" arriba.";
+    else if (!idle) st.textContent = "El robot no está libre (IDLE) — el botón físico tampoco haría nada ahora.";
+    else st.textContent = "Listo — al presionar, arranca con el perfil actualmente activo ("+(d.mode===2?"MINI":d.s_perfil===1?"MICRO":"MINI")+").";
+  });
+}
+function pulsarBotonVirtual(){
+  fetch("/sumo/boton").then(function(r){return r.json().then(function(d){return {ok:r.ok, data:d};});}).then(function(res){
+    if(!res.ok){ g("boton-virtual-status").textContent = "Sin efecto: "+(res.data.error||""); return; }
+    g("sec-stop").style.display  = "block";
+    g("sec-start").style.display = "none";
+    var lbl = (PERFIL==="micro") ? "MICROSUMO" : "MINISUMO";
+    g("active-warn").textContent = "MODO ACTIVO — "+lbl+" — iniciado desde el botón virtual";
+    g("bdg").textContent = lbl;
+  });
+}
+
+// ── Restauración completa de configuración (causa real de la pérdida
+//    de config al navegar: antes solo se restauraban velocidades/
+//    umbrales desde /api; el resto (tipo de sensor, pines, N° de
+//    sensores/borde, estrategia, perfil activo) nunca se releía). La
+//    fuente de verdad es SIEMPRE el proyecto (.franky) vigente en el
+//    servidor — /proyecto/export ya lo expone completo, para Mini y
+//    Micro a la vez, sin inventar un mecanismo de persistencia nuevo. ──
+var _cfgMini = null, _cfgMicro = null;
+function aplicarConfigPerfil(cfg, completo) {
+  if (!cfg) return;
+  var mapaTipo = {0:"sonar", 1:"optico", 2:"sharp"};
+  g("tipo-dist").value = mapaTipo[cfg.tipoDistSensor] || "sonar";
+  if (completo) g("num-dist").value = String(cfg.numDistSensores || 1);
+  g("trig-I").value = String(cfg.trigI); g("echo-I").value = String(cfg.echoI);
+  if (completo && cfg.trigD !== undefined) { g("trig-D").value = String(cfg.trigD); g("echo-D").value = String(cfg.echoD); }
+  g("sharp-I").value = String(cfg.sharpPinI);
+  if (completo && cfg.sharpPinD !== undefined) g("sharp-D").value = String(cfg.sharpPinD);
+  g("opt-I").value = String(cfg.optPinI);
+  if (completo && cfg.optPinD !== undefined) g("opt-D").value = String(cfg.optPinD);
+  g("u-sharp").value = String(cfg.umbralSharp); syncSpan("u-sharp","u-sharp-v","");
+  g("u-dist").value = String(cfg.umbralDistCm); syncSpan("u-dist","u-dist-v"," cm");
+  if (completo) g("num-borde").value = String(cfg.numBorde || 0);
+  g("borde-I").value = String(cfg.bordePinI);
+  if (completo && cfg.bordePinD !== undefined) g("borde-D").value = String(cfg.bordePinD);
+  g("u-borde").value = String(cfg.umbralBorde); syncSpan("u-borde","u-borde-v","");
+  g("spd-atk").value = String(cfg.spdAtaque); g("sv-atk").textContent = cfg.spdAtaque;
+  g("spd-vel").value = String(cfg.velBusqueda); g("sv-vel").textContent = cfg.velBusqueda;
+  g("spd-int").value = String(cfg.intGiro); g("sv-int").textContent = cfg.intGiro;
+  g("spd-ev").value  = String(cfg.spdEvasion); g("sv-ev").textContent = cfg.spdEvasion;
+  if (completo && cfg.durBarrido !== undefined) { g("spd-dur").value = String(cfg.durBarrido); g("sv-dur").textContent = cfg.durBarrido; }
+  if (completo && cfg.estrategia !== undefined) setEst(cfg.estrategia);
+  onSensorChange();
+  onBordeChange();
+}
+function cargarConfigCompleta(){
+  fetch("/proyecto/export").then(function(r){return r.json();}).then(function(d){
+    _cfgMini = d.sumo.mini; _cfgMicro = d.sumo.micro;
+    setPerfil(d.sumo.perfilActivo === 1 ? "micro" : "mini");
+    g("chk-inicio-srv").checked = !!d.sumo.inicio.servidor;
+    g("chk-inicio-btn").checked = !!d.sumo.inicio.boton;
+    actualizarEstadoBotonVirtual();
+  }).catch(function(){});
+}
+cargarConfigCompleta();
 
 // ════════════════════════════════════════════════════════
 //  TELEMETRÍA — Un solo polling /api  (700 ms)
@@ -882,18 +988,12 @@ setInterval(function(){
       updTrim();
     }
 
-    // Restaurar velocidades desde firmware al cargar
-    if (d.s_atk !== undefined && !_spdRestored) {
-      _spdRestored = true;
-      g("spd-atk").value = d.s_atk; g("sv-atk").textContent = d.s_atk;
-      g("spd-vel").value = d.s_vel; g("sv-vel").textContent = d.s_vel;
-      g("spd-int").value = d.s_int; g("sv-int").textContent = d.s_int;
-      g("spd-dur").value = d.s_dur; g("sv-dur").textContent = d.s_dur;
-      g("spd-ev").value  = d.s_ev;  g("sv-ev").textContent  = d.s_ev;
-      g("u-dist").value  = d.s_udist;  syncSpan("u-dist","u-dist-v"," cm");
-      g("u-sharp").value = d.s_usharp; syncSpan("u-sharp","u-sharp-v","");
-      g("u-borde").value = d.s_uborde; syncSpan("u-borde","u-borde-v","");
-    }
+    // NOTA: la restauración completa (tipo de sensor, pines, N° de
+    // sensores/borde, estrategia, velocidades, modo de inicio) ya la
+    // hace cargarConfigCompleta() al abrir la página, leyendo
+    // /proyecto/export — reemplaza el restore parcial que existía acá
+    // antes (solo velocidades/umbrales, nunca la config estructural;
+    // esa era la causa real de "se pierde la config al navegar").
 
     // Estado activo
     if (d.running && (d.mode===1||d.mode===2)) {
@@ -905,8 +1005,6 @@ setInterval(function(){
     checkBuses(); // re-check con estado bus actualizado
   }).catch(function(){});
 }, 700);
-
-var _spdRestored = false; // flag para restaurar velocidades solo 1 vez
 
 // ── Sonar live (solo cuando visible, 600ms) ─────────────
 setInterval(function(){
