@@ -202,6 +202,8 @@ export function defaultFirmwareModel() {
         recuperacionHaciaIzquierda: true,
         tRecuperacion: 0,
         ultimoAtaqueDirLog: -1,
+        sumoInicioServidor: true,
+        sumoInicioBoton: false,
         tInicioModo: 0,
         retardoOK: false,
         programa: [],
