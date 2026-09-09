@@ -67,7 +67,7 @@
   .debug-panel .drow { display: flex; justify-content: space-between; padding: 1px 0; border-bottom: 1px dashed #1c2534; }
   .debug-panel .drow .dv { font-weight: 700; }
   .debug-panel .dsep { height: 1px; background: #1c2534; margin: 6px 0; }
-  .oled-panel { background: #000; border: 2px solid #333; border-radius: 3px; display: block; margin-top: 4px; width: 100%; height: 64px; }
+  .oled-panel { background: #000; border: 2px solid #333; border-radius: 3px; display: block; margin-top: 4px; width: 100%; max-width: 256px; aspect-ratio: 128 / 64; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
   .hw-workspace { display: flex; gap: 8px; padding: 8px 16px; background: var(--panel); border-top: 1px solid #1c2534; flex-wrap: wrap; min-height: 0; }
   .hw-workspace:empty { display: none; }
   .hw-card {
@@ -128,6 +128,7 @@
         </select>
         <button class="tool-btn" id="toolIniciar" style="display:none">▶ Iniciar</button>
         <button class="tool-btn" id="toolDebug">🐞 Debug</button>
+        <button class="tool-btn" id="toolOled">🖥️ OLED</button>
         <span style="flex:1"></span>
         <button class="tool-btn" id="tabServidor">Servidor Web</button>
         <button class="tool-btn" id="tabBlockly">🧩 Programar con Blockly</button>
@@ -631,6 +632,19 @@ document.getElementById("toolDebug").addEventListener("click", () => {
   document.getElementById("toolDebug").classList.toggle("active", debugVisible);
 });
 
+// Botón "OLED" — EXCLUSIVO del LAB (no existe en el Server físico): NO
+// crea una pantalla propia — reusa la MISMA tarjeta OLED del Hardware
+// Workspace dinámico (la que ya aparece sola cuando Bloques corre un
+// programa que usa OLED). Solo fuerza que esa tarjeta se muestre
+// también cuando no hay ningún programa cargado, para poder verla a
+// voluntad. Nunca hay dos pantallas — una sola fuente de verdad.
+let oledForzado = false;
+document.getElementById("toolOled").addEventListener("click", () => {
+  oledForzado = !oledForzado;
+  document.getElementById("toolOled").classList.toggle("active", oledForzado);
+  if (window.__ultimoLabState) renderHardwareWorkspace(window.__ultimoLabState);
+});
+
 function robotStateLabel(lab) {
   if (!lab.retardoOK) return "RETARDO (5s)";
   if (lab.evadeState === 1) return "BACK (evadiendo)";
@@ -689,9 +703,16 @@ let deviceModelMod = null;
 import(resolveUrl("deviceModel.js")).then((m) => { deviceModelMod = m; });
 
 function renderHardwareWorkspace(lab) {
+  window.__ultimoLabState = lab; // el botón OLED necesita poder re-renderizar sin esperar al próximo poll
   const el = document.getElementById("hwWorkspace");
-  if (!deviceModelMod || !lab.programaOpcodes) { el.innerHTML = ""; return; }
-  const used = deviceModelMod.devicesUsedByProgram(lab.programaOpcodes);
+  if (!deviceModelMod || (!lab.programaOpcodes && !oledForzado)) { el.innerHTML = ""; return; }
+  const used = deviceModelMod.devicesUsedByProgram(lab.programaOpcodes || []);
+  // Botón "OLED" (forzado): agrega la tarjeta OLED aunque el programa
+  // cargado no la use — misma tarjeta, mismo dibujo, ningún sistema
+  // paralelo. Si el programa YA la usa, no se duplica.
+  if (oledForzado && !used.some((d) => d.id === "oled")) {
+    used.push({ id: "oled", name: "OLED I²C 128x64", bus: "i2c", pins: [6, 7], sharedResource: "i2c-bus-0", opcodes: [101, 102, 103, 104, 105, 106, 107, 108], real: false });
+  }
   const conflicts = deviceModelMod.detectPinConflicts(used);
   let html = "";
   for (const c of conflicts) {
@@ -723,16 +744,66 @@ function renderHardwareWorkspace(lab) {
   if (oc && lab.oled) drawOledFramebuffer(lab.oled, oc);
 }
 
-/** Reutilizada por el Panel de Debug Y el Hardware Workspace — un solo dibujo, no duplicado. */
+/**
+ * Reutilizada por el Panel de Debug Y el Hardware Workspace — un solo dibujo, no duplicado.
+ * Fondo negro, pixeles blancos (igual que un OLED monocromo real).
+ * SPRITE_SCALE=4 replica dibujarSpriteEscalado() real: cada pixel LÓGICO
+ * del sprite Blockly (16x16) se dibuja como un bloque de 4x4 pixeles
+ * físicos. kind="bitmap" (logo MDE real, Panel Industrial) se dibuja a
+ * escala 1:1 (ya viene al tamaño físico real de la pantalla).
+ */
+const SPRITE_SCALE = 4;
 function drawOledFramebuffer(oled, canvasEl) {
   const octx = canvasEl.getContext("2d");
   octx.fillStyle = "#000"; octx.fillRect(0, 0, 128, 64);
-  octx.fillStyle = "#0f0"; octx.strokeStyle = "#0f0"; octx.font = "8px monospace";
+  octx.fillStyle = "#fff"; octx.strokeStyle = "#fff"; octx.font = "8px monospace";
   for (const el of oled.shown || []) {
     if (el.kind === "text") octx.fillText(el.text || "", el.x, el.y + 8);
     else if (el.kind === "line") { octx.beginPath(); octx.moveTo(el.x, el.y); octx.lineTo(el.x2, el.y2); octx.stroke(); }
     else if (el.kind === "rect") octx.strokeRect(el.x, el.y, el.w, el.h);
     else if (el.kind === "circle") { octx.beginPath(); octx.arc(el.x, el.y, el.r, 0, Math.PI * 2); octx.stroke(); }
+    else if (el.kind === "sprite") drawSpriteEscalado(octx, el.x, el.y, el.bitmap);
+    else if (el.kind === "bitmap") drawBitmapLogo(octx, el.x, el.y, el.bitmap, el.anchoBits || 128, el.altoBits || 64);
+  }
+}
+/**
+ * Sprite Blockly 16x16 — réplica de dibujarSpriteEscalado() real:
+ * empaquetado por NIBBLE (64 chars hex = 256 bits, 4 bits/char), mismo
+ * formato que el editor gráfico de sprites en bloques.html.
+ */
+function drawSpriteEscalado(octx, x, y, bitmapHex) {
+  if (!bitmapHex) return;
+  for (let fila = 0; fila < 16; fila++) {
+    for (let col = 0; col < 16; col++) {
+      const bitIdx = fila * 16 + col;
+      const hexChar = bitmapHex[bitIdx >> 2];
+      if (hexChar === undefined) continue;
+      const nibble = parseInt(hexChar, 16) || 0;
+      const bitInNibble = 3 - (bitIdx % 4);
+      if ((nibble >> bitInNibble) & 1) {
+        octx.fillRect(x + col * SPRITE_SCALE, y + fila * SPRITE_SCALE, SPRITE_SCALE, SPRITE_SCALE);
+      }
+    }
+  }
+}
+/**
+ * Logo MDE real (Panel Industrial) — empaquetado por BYTE estándar (2
+ * chars hex = 1 byte = 8 bits, MSB primero), tamaño completo de pantalla
+ * (128x64 o 128x32), escala 1:1. Formato distinto del sprite de Blockly
+ * a propósito — son dos features separadas con orígenes distintos.
+ */
+function drawBitmapLogo(octx, x, y, bitmapHex, anchoBits, altoBits) {
+  if (!bitmapHex) return;
+  const bytesPorFila = Math.ceil(anchoBits / 8);
+  for (let fila = 0; fila < altoBits; fila++) {
+    for (let col = 0; col < anchoBits; col++) {
+      const byteIdx = fila * bytesPorFila + (col >> 3);
+      const h1 = bitmapHex[byteIdx * 2], h2 = bitmapHex[byteIdx * 2 + 1];
+      if (h1 === undefined || h2 === undefined) continue;
+      const byteVal = parseInt(h1 + h2, 16) || 0;
+      const bitInByte = 7 - (col % 8);
+      if ((byteVal >> bitInByte) & 1) octx.fillRect(x + col, y + fila, 1, 1);
+    }
   }
 }
 

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Monitor Serie Virtual</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
+</head><body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Monitor Serie Virtual</div></div>
+  <div class="bdg">MONITOR</div>
+</div>
+<div class="wrap">
+
+<div class="card"><div class="ct">Que es esto</div>
+  <p style="font-size:12px;color:var(--txt2)">
+    Herramienta VISUAL para observar el sistema en vivo: eventos,
+    estados y salidas generadas por Blockly/Sumo — en tiempo real.
+    Es la version de pantalla completa del mismo Monitor que aparece
+    como boton flotante en el resto de las paginas del LAB (util en
+    pantallas chicas, donde el flotante puede quedar incomodo).
+  </p>
+  <p style="font-size:12px;color:var(--txt2)">
+    Esto NO es la bitacora tecnica del sistema — para eso existe
+    <a data-app-href="log" style="color:var(--acc)">/log</a>, un registro
+    completo en texto plano pensado para copiar y compartir, no para
+    leerse comodo en pantalla. Este Monitor es una simulacion de
+    navegador (FRANKY LAB) — NO es el puerto serie de un ESP32 fisico.
+  </p>
+</div>
+
+<div class="card"><div class="ct">Registro en vivo</div>
+  <p style="font-size:11px;color:var(--txt2);margin-bottom:8px">
+    Se actualiza cada 1,5s. Los botones (Pausar / Debug / Guardar /
+    Limpiar) son los mismos del Monitor flotante que ya existe en el
+    resto de las paginas — es el mismo sistema, mostrado completo en
+    esta pagina en vez de en la ventana chica.
+  </p>
+</div>
+
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+<script>
+FRANKY_BASE.rewriteDom();
+// Version de pagina completa: reutiliza el mismo panel del Monitor
+// flotante compartido (mismo buffer, mismo polling, mismos botones) —
+// no crea un segundo sistema de visualizacion (ver monitor.js).
+document.addEventListener("DOMContentLoaded", function(){
+  Monitor.setContext("Monitor");
+  Monitor.mostrarPaginaCompleta();
+});
+</script>
+</body></html>

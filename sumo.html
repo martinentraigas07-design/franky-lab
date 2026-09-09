@@ -4,6 +4,8 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Franky 4.0 - SUMO</title>
 <script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
 <style>
 /* ── Tabs modo ── */
 .mode-tabs{display:flex;gap:6px;margin-bottom:0;}
@@ -332,14 +334,14 @@
              oninput="document.getElementById('sv-atk').textContent=this.value">
     </div>
     <div class="spd-item">
-      <label>Búsqueda rápido <span class="sv" id="sv-bex">210</span></label>
-      <input type="range" min="60" max="255" value="210" id="spd-bex"
-             oninput="document.getElementById('sv-bex').textContent=this.value">
+      <label>Velocidad de búsqueda <span class="sv" id="sv-vel">145</span></label>
+      <input type="range" min="0" max="255" value="145" id="spd-vel"
+             oninput="document.getElementById('sv-vel').textContent=this.value">
     </div>
     <div class="spd-item">
-      <label>Búsqueda lento <span class="sv" id="sv-bin">70</span></label>
-      <input type="range" min="0" max="180" value="70" id="spd-bin"
-             oninput="document.getElementById('sv-bin').textContent=this.value">
+      <label>Intensidad de giro <span class="sv" id="sv-int">130</span></label>
+      <input type="range" min="0" max="255" value="130" id="spd-int"
+             oninput="document.getElementById('sv-int').textContent=this.value">
     </div>
     <div class="spd-item">
       <label>Evasión borde <span class="sv" id="sv-ev">220</span></label>
@@ -348,7 +350,8 @@
     </div>
   </div>
   <p style="font-size:11px;color:var(--txt2);margin-top:6px">
-    Búsqueda rápido + lento forman el arco de círculo cerrado. Diferencia mayor = arco más cerrado.
+    Velocidad de búsqueda = qué tan rápido se desplaza el robot mientras busca.
+    Intensidad de giro = diferencia relativa entre ruedas (NO es un ángulo ni un radio exactos).
   </p>
 </div>
 
@@ -367,9 +370,14 @@
   </div>
   <div id="est-cab-desc" class="scfg" style="display:none;padding:8px 10px;">
     <p style="font-size:12px;color:var(--txt2);margin:0">
-      El robot oscila izquierda/derecha barriendo 180°. Útil con sensores de ángulo estrecho.
-      Intervalo: 300 ms por lado.
+      El robot traza una curva hacia un lado y después hacia el otro (nunca gira en el lugar).
+      Útil con sensores de ángulo estrecho.
     </p>
+    <div class="spd-item" style="margin-top:8px;">
+      <label>Duración del barrido (ms) <span class="sv" id="sv-dur">250</span></label>
+      <input type="range" min="50" max="3000" value="250" id="spd-dur"
+             oninput="document.getElementById('sv-dur').textContent=this.value">
+    </div>
   </div>
 </div>
 
@@ -455,6 +463,7 @@
 </div><!-- /wrap -->
 <script>
 FRANKY_BASE.rewriteDom();
+if (typeof Monitor !== "undefined") Monitor.setContext("Sumo");
 // ════════════════════════════════════════════════════════
 //  Estado local del frontend
 // ════════════════════════════════════════════════════════
@@ -747,10 +756,11 @@ function iniciarSumo() {
     numBorde: nBorde,
     umbral_borde:  g("u-borde").value,
     spdAtaque:     g("spd-atk").value,
-    spdBuscExt:    g("spd-bex").value,
-    spdBuscInt:    g("spd-bin").value,
+    velBusqueda:   g("spd-vel").value,
+    intGiro:       g("spd-int").value,
     spdEvasion:    g("spd-ev").value,
-    estrategia:    PERFIL==="micro" ? 0 : EST
+    estrategia:    PERFIL==="micro" ? 0 : EST,
+    durBarrido:    g("spd-dur").value
   };
 
   if (tipo === "sonar") {
@@ -876,8 +886,9 @@ setInterval(function(){
     if (d.s_atk !== undefined && !_spdRestored) {
       _spdRestored = true;
       g("spd-atk").value = d.s_atk; g("sv-atk").textContent = d.s_atk;
-      g("spd-bex").value = d.s_bex; g("sv-bex").textContent = d.s_bex;
-      g("spd-bin").value = d.s_bin; g("sv-bin").textContent = d.s_bin;
+      g("spd-vel").value = d.s_vel; g("sv-vel").textContent = d.s_vel;
+      g("spd-int").value = d.s_int; g("sv-int").textContent = d.s_int;
+      g("spd-dur").value = d.s_dur; g("sv-dur").textContent = d.s_dur;
       g("spd-ev").value  = d.s_ev;  g("sv-ev").textContent  = d.s_ev;
       g("u-dist").value  = d.s_udist;  syncSpan("u-dist","u-dist-v"," cm");
       g("u-sharp").value = d.s_usharp; syncSpan("u-sharp","u-sharp-v","");

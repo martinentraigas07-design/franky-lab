@@ -12,12 +12,13 @@
     "build:root": "node build/copy-to-root.mjs",
     "build:release": "npm run build:all && npm run build:ghpages && npm run build:root",
     "serve": "node build/serve.mjs",
-    "test": "npm run build && node dist/core/src/worldModel.selfTest.js && node dist/core/src/simulationEngine.selfTest.js && node dist/core/src/deviceModel.selfTest.js && node dist/core/src/swRuntime.selfTest.js && node dist/core/src/rules/rules.selfTest.js && node dist/providers/franky-server-4.0/tests/firmware.selfTest.js && node dist/providers/franky-server-4.0/tests/server.selfTest.js && node dist/providers/franky-server-4.0/tests/lab.selfTest.js && node dist/providers/franky-server-4.0/tests/uiIntegration.selfTest.js",
-    "test:e2e": "npm run build:all && node providers/franky-server-4.0/tests/e2e.smoketest.mjs && node providers/franky-server-4.0/tests/subpath-deployment.e2e.mjs && node providers/franky-server-4.0/tests/bloques-html.e2e.mjs && node providers/franky-server-4.0/tests/base-js.e2e.mjs",
+    "test": "npm run build && node dist/core/src/worldModel.selfTest.js && node dist/core/src/simulationEngine.selfTest.js && node dist/core/src/deviceModel.selfTest.js && node dist/core/src/swRuntime.selfTest.js && node dist/core/src/rules/rules.selfTest.js && node dist/providers/franky-server-4.0/tests/firmware.selfTest.js && node dist/providers/franky-server-4.0/tests/gpio.selfTest.js && node dist/providers/franky-server-4.0/tests/monitor.selfTest.js && node dist/providers/franky-server-4.0/tests/sumoEngine.selfTest.js && node dist/providers/franky-server-4.0/tests/proyectoFranky.selfTest.js && node dist/providers/franky-server-4.0/tests/server.selfTest.js && node dist/providers/franky-server-4.0/tests/lab.selfTest.js && node dist/providers/franky-server-4.0/tests/uiIntegration.selfTest.js",
+    "test:e2e": "npm run build:all && node providers/franky-server-4.0/tests/e2e.smoketest.mjs && node providers/franky-server-4.0/tests/subpath-deployment.e2e.mjs && node providers/franky-server-4.0/tests/bloques-html.e2e.mjs && node providers/franky-server-4.0/tests/base-js.e2e.mjs && node providers/franky-server-4.0/tests/monitor-html.e2e.mjs && node providers/franky-server-4.0/tests/blockly-real.e2e.mjs",
     "test:all": "npm run test && npm run test:e2e"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.6.0"
   }
 }

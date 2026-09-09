@@ -4,6 +4,8 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Franky 4.0 - Panel Industrial</title>
 <script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
 <style>
 .led-ring{width:52px;height:52px;border-radius:50%;border:3px solid var(--brd);
   display:flex;align-items:center;justify-content:center;margin:0 auto 8px;transition:all .3s;}
@@ -234,15 +236,80 @@ select.pin-sel{background:var(--bg);border:1px solid var(--brd);color:var(--txt)
   <a data-app-href="panel_config.html" class="btn bg" style="margin-top:8px">&#9881; Configurar I2C / SPI</a>
 </div>
 
+<!-- OLED — Sesión 1 (auditoría Server-vs-LAB): paridad funcional con el
+     Panel Industrial real. El LAB no escanea I2C real (no hay chip que
+     detectar) — "Probar" confirma la única precondición real (I2C
+     habilitado) y aplica el tamaño elegido; nunca "encuentra" una
+     dirección. El logo se dibuja como texto placeholder (no hay bitmap
+     real empaquetado en este proyecto). -->
+<div class="card"><div class="ct">OLED</div>
+  <div class="pin-row">
+    <span class="pin-lbl">Tamano</span>
+    <select id="oled-size" class="pin-sel">
+      <option value="96">0.96" (128x64)</option>
+      <option value="91">0.91" (128x32)</option>
+    </select>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <button class="bi bsm" onclick="oledTest()">&#128269; Probar</button>
+    <button class="bg bsm" onclick="oledClear()">&#10005; Limpiar</button>
+    <button class="bg bsm" onclick="oledLogo()">Logo MDE</button>
+  </div>
+  <p style="font-size:11px;color:var(--txt2);margin-top:6px" id="oled-status">
+    "Probar" confirma que I2C esta habilitado (el LAB no escanea un chip fisico).
+  </p>
+</div>
+
 <a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
 </div>
 
 <script>
 FRANKY_BASE.rewriteDom();
+if (typeof Monitor !== "undefined") Monitor.setContext("Panel");
 var MODES=["IDLE","MICROSUMO","MINISUMO","VIVERO","METEO","ALARMA","ACCESO","BLOQUES"];
 var blinkTmr=null;
 var sonarActive=false;
 var sonarTmr=null;
+
+// Sesión 1 (auditoría Server-vs-LAB) — OLED del Panel Industrial.
+// Usa Monitor.fetchConConflicto() cuando existe (mismo helper que el
+// Server real): si Blockly está usando el OLED, el propio Monitor le
+// pregunta al usuario si quiere detenerlo y reintentar con forzar=1.
+function _fetchOled(url){
+  if (typeof Monitor !== "undefined" && Monitor.fetchConConflicto) return Monitor.fetchConConflicto(url);
+  return fetch(url);
+}
+function oledTest(){
+  var size=document.getElementById("oled-size").value;
+  var st=document.getElementById("oled-status");
+  if(st) st.textContent="Probando...";
+  _fetchOled("/oled/test?size="+size).then(function(r){
+    if(!r.ok) return r.json().then(function(d){throw new Error(d.error||"error")});
+    return r.json();
+  }).then(function(d){
+    if(st) st.textContent="OLED confirmado: "+d.ancho+"x"+d.alto+" (I2C habilitado — el LAB no escanea un chip fisico).";
+  }).catch(function(e){
+    if(st) st.textContent="Error: "+e.message;
+  });
+}
+function oledClear(){
+  var st=document.getElementById("oled-status");
+  _fetchOled("/oled/clear").then(function(r){
+    if(!r.ok) return r.json().then(function(d){throw new Error(d.error||"error")});
+    if(st) st.textContent="OLED limpiado.";
+  }).catch(function(e){
+    if(st) st.textContent="Error: "+e.message;
+  });
+}
+function oledLogo(){
+  var st=document.getElementById("oled-status");
+  _fetchOled("/oled/logo").then(function(r){
+    if(!r.ok) return r.json().then(function(d){throw new Error(d.error||"error")});
+    if(st) st.textContent="Logo MDE mostrado. Abri el boton \"OLED\" del Robot Virtual para verlo.";
+  }).catch(function(e){
+    if(st) st.textContent="Error: "+e.message;
+  });
+}
 
 function ledOn(){
   clearInterval(blinkTmr);
@@ -336,6 +403,11 @@ setInterval(function(){
       var d6st=document.getElementById("d6-st");if(d6st)d6st.textContent=d.i2c?"I2C on":"Libre";
       var d7st=document.getElementById("d7-st");if(d7st)d7st.textContent=d.i2c?"I2C on":"Libre";
       var d10st=document.getElementById("d10-st");if(d10st)d10st.textContent=d.spi?"SPI on":"Libre";
+    }
+    // OLED (Sesion 1)
+    if(d.oled_det!==undefined){
+      var os=document.getElementById("oled-status");
+      if(os && d.oled_det) os.textContent="OLED confirmado: "+d.oled_w+"x"+d.oled_h+".";
     }
   });
 },800);

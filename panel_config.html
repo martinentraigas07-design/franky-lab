@@ -10,13 +10,45 @@
   <div class="bdg">CONFIG</div>
 </div>
 <div class="wrap">
-<div class="bw">Al guardar, la placa se reinicia para reconfigurar los perifericos.</div>
+<div class="bw">En el ESP32 fisico, guardar reinicia la placa para reconfigurar los perifericos. Este Laboratorio virtual aplica los cambios de inmediato, sin reiniciar.</div>
+<div class="card"><div class="ct">Pines I2C (SDA / SCL)</div>
+<div>
+  <div class="st">
+    <div style="font-weight:700;font-size:14px;color:var(--txt)">SDA</div>
+    <select name="sda" id="sel-sda" style="padding:6px;border-radius:6px;">
+      <option value="6">GPIO6</option>
+      <option value="7">GPIO7</option>
+      <option value="10">GPIO10</option>
+      <option value="20">GPIO20</option>
+      <option value="21">GPIO21</option>
+    </select>
+  </div>
+  <div class="st" style="margin-top:8px">
+    <div style="font-weight:700;font-size:14px;color:var(--txt)">SCL</div>
+    <select name="scl" id="sel-scl" style="padding:6px;border-radius:6px;">
+      <option value="6">GPIO6</option>
+      <option value="7">GPIO7</option>
+      <option value="10">GPIO10</option>
+      <option value="20">GPIO20</option>
+      <option value="21">GPIO21</option>
+    </select>
+  </div>
+  <div class="ib" style="margin-top:12px">
+    <b>Pool valido:</b> GPIO6, GPIO7, GPIO10, GPIO20, GPIO21. SDA y SCL no pueden ser el mismo GPIO.<br>
+    Si el par elegido esta ocupado por otra funcion (motor, sensor de Sumo, bus SPI), se rechaza y el par anterior se mantiene sin cambios.<br>
+    <b>Diferencia con el ESP32 fisico:</b> este Laboratorio aplica el cambio de inmediato, sin reiniciar.
+  </div>
+  <div id="i2c-set-status" style="margin-top:8px;font-size:12px;color:var(--txt2)"></div>
+  <button type="button" class="btn ba" style="margin-top:12px" onclick="aplicarI2CPins()">Aplicar SDA/SCL</button>
+</div>
+</div>
+
 <div class="card"><div class="ct">Buses de Comunicacion I2C / SPI</div>
 <form data-app-action="panel/save" method="GET">
   <div class="st">
     <div>
       <div style="font-weight:700;font-size:14px;color:var(--txt)">Bus I2C</div>
-      <div style="font-size:12px;color:var(--txt2)">GPIO6 (SDA) / GPIO7 (SCL)<br>OLED, sensores I2C, expansores</div>
+      <div style="font-size:12px;color:var(--txt2)">SDA/SCL configurables arriba<br>OLED, sensores I2C, expansores</div>
     </div>
     <input type="checkbox" name="i2c" id="chk-i2c" style="width:24px;height:24px;accent-color:var(--acc);">
   </div>
@@ -40,12 +72,39 @@
 <div class="card"><div class="ct">Estado Actual</div>
   <div class="st"><span class="sl">I2C</span><span class="sv chip" id="i2c-st">cargando...</span></div>
   <div class="st"><span class="sl">SPI</span><span class="sv chip" id="spi-st">cargando...</span></div>
+  <div class="st"><span class="sl">Pines I2C</span><span class="sv chip" id="i2c-pines">cargando...</span></div>
 </div>
 
 <a data-app-href="panel.html" class="btn bg">&#8592; Volver al Panel</a>
 </div>
 <script>
 FRANKY_BASE.rewriteDom();
+// CORRECCIÓN (navegación I2C bloqueada): antes este formulario navegaba
+// con GET a /i2c/set, dejando al usuario en una página de texto/JSON
+// plano sin forma de volver. Ahora se aplica con fetch(), la página
+// nunca se abandona, y el estado (éxito o rechazo) se muestra inline —
+// el botón "Volver al Panel" de esta misma página siempre sigue disponible.
+function aplicarI2CPins(){
+  var sda = document.getElementById("sel-sda").value;
+  var scl = document.getElementById("sel-scl").value;
+  var st = document.getElementById("i2c-set-status");
+  st.textContent = "Aplicando...";
+  st.style.color = "var(--txt2)";
+  fetch("/i2c/set?sda="+sda+"&scl="+scl).then(function(r){
+    if (r.ok) {
+      st.textContent = "SDA=GPIO"+sda+" / SCL=GPIO"+scl+" aplicado.";
+      st.style.color = "var(--ok)";
+      return;
+    }
+    return r.json().then(function(d){
+      st.textContent = "Rechazado: " + (d.error || "GPIO ocupado por otra funcion") + " (la configuracion anterior se mantuvo).";
+      st.style.color = "var(--danger)";
+    });
+  }).catch(function(e){
+    st.textContent = "Error: " + e.message;
+    st.style.color = "var(--danger)";
+  });
+}
 fetch("/api").then(function(r){return r.json();}).then(function(d){
   var i2c=document.getElementById("i2c-st");
   var spi=document.getElementById("spi-st");
@@ -63,6 +122,14 @@ fetch("/api").then(function(r){return r.json();}).then(function(d){
   } else {
     if(spi){spi.textContent="DESHABILITADO";spi.className="chip cof";}
   }
+});
+fetch("/gpio/estado").then(function(r){return r.json();}).then(function(d){
+  var selSda=document.getElementById("sel-sda");
+  var selScl=document.getElementById("sel-scl");
+  if(selSda) selSda.value=String(d.i2c_sda);
+  if(selScl) selScl.value=String(d.i2c_scl);
+  var pinesEl=document.getElementById("i2c-pines");
+  if(pinesEl) pinesEl.textContent="SDA=GPIO"+d.i2c_sda+" / SCL=GPIO"+d.i2c_scl;
 });
 </script>
 </body></html>
