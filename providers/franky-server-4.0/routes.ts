@@ -11,12 +11,18 @@ export const API_ROUTES: readonly string[] = [
   "/api", "/debug", "/bloques/list",
   "/mv", "/st", "/spd", "/stopall",
   "/sumo/config", "/sumo/trim", "/sumo/micro", "/sumo/mini", "/sumo/stop", "/sumo/umbral",
+  "/proyecto/export", "/proyecto/import",
   "/bloques/add", "/bloques/del", "/bloques/run", "/bloques/stop", "/bloques/clear",
   "/auto/vivero", "/auto/meteo", "/auto/alarma", "/auto/alarma/reset", "/auto/acceso", "/auto/stop",
   "/panel/config", "/panel/save",
   "/led/on", "/led/off", "/led/brillo",
-  "/gpio/out", "/gpio/read",
+  "/gpio/out", "/gpio/read", "/gpio/estado",
   "/sonar/read", "/sonar/stop", "/dht/pin",
+  "/i2c/set", "/i2c/scan",
+  "/monitor/log", "/monitor/debug", "/log",
+  "/oled/test", "/oled/clear", "/oled/logo",
+  "/runtime/pagina", "/runtime/navegador",
+  "/bloques/xml", "/bloques/marcarFuente",
 ];
 
 /**

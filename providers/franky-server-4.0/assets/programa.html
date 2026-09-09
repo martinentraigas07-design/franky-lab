@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<script src="base.js"></script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Franky 4.0 - Programa</title>
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
+<style>
+.tabs{display:flex;gap:4px;margin-bottom:10px;}
+.tab{flex:1;padding:8px;background:var(--bg3);border:1px solid var(--brd);border-radius:6px;
+  font-size:12px;font-weight:700;color:var(--txt2);cursor:pointer;text-align:center;}
+.tab.act{background:var(--acc);color:#fff;border-color:var(--acc);}
+.bloque-viz{display:flex;align-items:flex-start;gap:8px;background:var(--bg3);border:1px solid var(--brd);
+  border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px;}
+.bloque-viz .ic{font-size:16px;flex-shrink:0;line-height:1.4;}
+.bloque-viz .cuerpo{flex:1;min-width:0;word-break:break-word;}
+.bloque-viz .tipo{color:var(--txt2);font-size:10px;margin-top:2px;}
+.bloque-cuerpo-interno{margin-left:14px;border-left:2px solid var(--brd);padding-left:10px;margin-top:4px;}
+.warn-banner{background:#13100a;border:1px solid var(--warn);border-left:4px solid var(--warn);
+  border-radius:6px;padding:10px 12px;font-size:12px;color:#ffd54f;margin-bottom:10px;display:none;}
+</style>
+</head>
+<body>
+<div class="tb"><img data-app-src="logo.jpg" alt="MDE">
+  <div><div class="ttl">FRANKY 4.0</div><div class="sub">Programa Guardado</div></div>
+  <div class="bdg" id="bdg">-</div>
+</div>
+<div class="wrap">
+
+<div class="ib">
+  Esta pagina muestra y ejecuta el <b>programa guardado en este Laboratorio virtual</b> — sirve
+  para revisar o correr un programa armado antes, sin necesidad de abrir el editor completo de
+  Bloques. <b>Diferencia con el Server real:</b> en el ESP32 fisico esto se guarda en SPIFFS y
+  sobrevive un apagado; en FRANKY LAB vive en memoria mientras esta pestaña siga abierta —
+  no es persistencia real de hardware, es la misma logica que usa el resto del estado virtual.
+</div>
+
+<div class="warn-banner" id="sync-warn">
+  &#9888; El programa fuente guardado cambio despues de la ultima vez que se compilo un programa
+  ejecutable. Lo que se ve abajo en <b>Ver</b> puede no coincidir exactamente con lo que correria
+  <b>Ejecutar</b>. Abri <a data-app-href="bloques.html" style="color:#ffd54f">Programacion Bloques</a>
+  y presiona Ejecutar ahi para recompilar y sincronizar.
+</div>
+
+<div class="tabs">
+  <div class="tab act" id="t1" onclick="showModo(1)">Ver</div>
+  <div class="tab" id="t2" onclick="showModo(2)">Ejecutar</div>
+</div>
+
+<div id="pnl1">
+  <div class="card">
+    <div class="ct">Programa (solo lectura)</div>
+    <div id="visor">Cargando...</div>
+  </div>
+</div>
+
+<div id="pnl2" style="display:none">
+  <div class="card">
+    <div class="ct">Ejecutar</div>
+    <div class="st"><span class="sl">Instrucciones compiladas</span><span class="sv" id="ej-len">-</span></div>
+    <div class="st"><span class="sl">Estado</span><span class="sv chip cac" id="ej-estado">-</span></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn bo" id="btn-ejecutar" onclick="ejecutarGuardado()">&#9654; Ejecutar</button>
+      <button class="btn bd" onclick="detenerGuardado()">&#9632; Detener</button>
+    </div>
+    <div class="ib" style="margin-top:10px">
+      Ejecuta el <b>bytecode ya compilado</b> que el Laboratorio tiene cargado ahora mismo — el
+      mismo motor de ejecucion que usa Programacion Bloques, esta pagina no vuelve a compilar
+      nada (no hay un segundo compilador). Nunca se ejecuta solo: unicamente al presionar este
+      boton.
+    </div>
+  </div>
+</div>
+
+<a data-app-href="bloques.html" class="btn bg">&#9998; Abrir editor completo</a>
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
+</div>
+
+<script>
+FRANKY_BASE.rewriteDom();
+if (typeof Monitor !== "undefined") Monitor.setContext("Programa");
+
+function g(id){ return document.getElementById(id); }
+
+function showModo(n){
+  [1,2].forEach(function(i){
+    g("pnl"+i).style.display = i===n ? "block" : "none";
+    g("t"+i).className = "tab" + (i===n ? " act" : "");
+  });
+}
+
+// Catalogo curado de los bloques del LAB (ver defBlocks() en
+// bloques.html) — icono + descripcion en espanol, para MOSTRAR el
+// programa sin cargar la libreria Blockly completa. Un tipo de bloque
+// que no esta acá NUNCA rompe la pagina — cae al generico de
+// humanizarTipo(). El bytecode que en verdad se ejecuta ya esta
+// compilado en el Laboratorio, esta pagina no lo vuelve a interpretar.
+var BLOQUE_INFO = {
+  f_adelante:    {ic:"&#10145;&#65039;", txt:function(c){return "Adelante a velocidad "+(c.VEL||"?");}},
+  f_atras:       {ic:"&#11013;&#65039;", txt:function(c){return "Atras a velocidad "+(c.VEL||"?");}},
+  f_izq:         {ic:"&#8630;", txt:function(c){return "Girar izquierda a velocidad "+(c.VEL||"?");}},
+  f_der:         {ic:"&#8631;", txt:function(c){return "Girar derecha a velocidad "+(c.VEL||"?");}},
+  f_stop:        {ic:"&#9209;&#65039;", txt:function(){return "Detener motores";}},
+  f_freno:       {ic:"&#128721;", txt:function(){return "Freno activo";}},
+  f_pwm_motor:   {ic:"&#9881;&#65039;", txt:function(c){return "PWM motor "+(c.CH||"?")+" duty "+(c.DUTY||"?");}},
+  f_servo:       {ic:"&#129438;", txt:function(c){return "Servo GPIO"+(c.GPIO||"?")+" a "+(c.ANG||"?")+" grados";}},
+  f_servo_sweep: {ic:"&#129438;", txt:function(){return "Barrido de servo";}},
+  f_dout:        {ic:"&#128268;", txt:function(c){return "Salida digital GPIO"+(c.GPIO||"?")+" = "+(c.VAL||"?");}},
+  f_din:         {ic:"&#128268;", txt:function(c){return "Leer entrada digital GPIO"+(c.GPIO||"?");}},
+  f_pwm_out:     {ic:"&#128268;", txt:function(c){return "PWM GPIO"+(c.GPIO||"?")+" "+(c.FREQ||"?")+"Hz duty "+(c.DUTY||"?");}},
+  f_led_on:      {ic:"&#128161;", txt:function(){return "LED encendido";}},
+  f_led_off:     {ic:"&#128161;", txt:function(){return "LED apagado";}},
+  f_adc:         {ic:"&#128200;", txt:function(c){return "Leer ADC GPIO"+(c.GPIO||"?");}},
+  f_millis:      {ic:"&#9201;&#65039;", txt:function(){return "Milisegundos desde el arranque";}},
+  f_buzzer:      {ic:"&#128266;", txt:function(c){return "Buzzer "+(c.FREQ||"?")+"Hz por "+(c.DUR||"?")+"ms";}},
+  f_oled_clear:  {ic:"&#128421;&#65039;", txt:function(){return "Limpiar pantalla OLED";}},
+  f_oled_show:   {ic:"&#128421;&#65039;", txt:function(){return "Mostrar en pantalla OLED";}},
+  f_oled_text:   {ic:"&#128421;&#65039;", txt:function(c){return "Texto OLED col."+(c.COL||"0")+" fila "+(c.FILA||"0")+": \""+(c.TXT||"")+"\"";}},
+  f_oled_sprite: {ic:"&#128444;&#65039;", txt:function(c){return "Sprite OLED en x="+(c.X||"0")+" y="+(c.Y||"0");}},
+  f_if_gt:       {ic:"&#10067;", txt:function(c){return "SI sensor > "+(c.UMBRAL||"?")+" ENTONCES...";}},
+  f_if_lt:       {ic:"&#10067;", txt:function(c){return "SI sensor < "+(c.UMBRAL||"?")+" ENTONCES...";}},
+  f_while_gt:    {ic:"&#128260;", txt:function(c){return "MIENTRAS sensor > "+(c.UMBRAL||"?")+"...";}},
+  f_repeat:      {ic:"&#128260;", txt:function(c){return "REPETIR "+(c.N||"?")+" veces...";}},
+  f_var_set:     {ic:"&#128290;", txt:function(c){return "Variable "+(c.VAR||"?")+" = "+(c.VAL!==undefined?c.VAL:"?");}},
+  f_var_add:     {ic:"&#128290;", txt:function(c){return "Variable "+(c.VAR||"?")+" += "+(c.VAL!==undefined?c.VAL:"?");}},
+  f_esperar:     {ic:"&#8987;", txt:function(c){return "Esperar "+(c.MS||"?")+" ms";}},
+  f_esperar_us:  {ic:"&#8987;", txt:function(c){return "Esperar "+(c.US||"?")+" us";}},
+  f_serial_print:{ic:"&#128172;", txt:function(c){return "Imprimir: \""+(c.MSG||"")+"\"";}},
+  f_ultrasonic:  {ic:"&#128225;", txt:function(){return "Leer sensor ultrasonico";}},
+  f_qtr8a_read:  {ic:"&#128225;", txt:function(){return "Leer sensor QTR8A";}},
+  f_mcp3208_read:{ic:"&#128225;", txt:function(){return "Leer MCP3208";}},
+  f_dht_temp:    {ic:"&#127777;&#65039;", txt:function(){return "Leer temperatura DHT";}},
+  f_dht_hum:     {ic:"&#128167;", txt:function(){return "Leer humedad DHT";}},
+  f_pid_start:   {ic:"&#127899;&#65039;", txt:function(){return "Iniciar control PID";}},
+  f_pid_stop:    {ic:"&#127899;&#65039;", txt:function(){return "Detener control PID";}},
+  f_pid_set:     {ic:"&#127899;&#65039;", txt:function(){return "Configurar PID";}},
+  f_map:         {ic:"&#128290;", txt:function(){return "Mapear rango de valor";}},
+  f_constrain:   {ic:"&#128290;", txt:function(){return "Limitar valor a un rango";}}
+};
+var BLOQUES_CON_CUERPO = {f_if_gt:1, f_if_lt:1, f_while_gt:1, f_repeat:1};
+
+function humanizarTipo(tipo){
+  return tipo.replace(/^f_/,"").replace(/_/g," ");
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function extraerCampos(blockEl){
+  var campos = {};
+  Array.prototype.forEach.call(blockEl.children, function(hijo){
+    if(hijo.tagName === "field") campos[hijo.getAttribute("name")] = hijo.textContent;
+  });
+  return campos;
+}
+function primerHijoPorTag(el, tag){
+  var r = null;
+  Array.prototype.forEach.call(el.children, function(hijo){
+    if(!r && hijo.tagName === tag) r = hijo;
+  });
+  return r;
+}
+function renderBloque(blockEl){
+  var tipo = blockEl.getAttribute("type") || "?";
+  var info = BLOQUE_INFO[tipo];
+  var campos = extraerCampos(blockEl);
+  var ic = info ? info.ic : "&#129513;";
+  var texto;
+  try { texto = info ? info.txt(campos) : humanizarTipo(tipo); }
+  catch(e) { texto = humanizarTipo(tipo); }
+  var html = '<div class="bloque-viz"><div class="ic">'+ic+'</div><div class="cuerpo">'+
+    escapeHtml(texto)+'<div class="tipo">'+escapeHtml(tipo)+'</div></div></div>';
+  if(BLOQUES_CON_CUERPO[tipo] || primerHijoPorTag(blockEl,"statement")){
+    var stmt = primerHijoPorTag(blockEl, "statement");
+    var primerBloqueInterno = stmt ? primerHijoPorTag(stmt, "block") : null;
+    html += '<div class="bloque-cuerpo-interno">' +
+      (primerBloqueInterno ? renderCadena(primerBloqueInterno) : '<i style="color:var(--txt2);font-size:11px">(vacio)</i>') +
+      '</div>';
+  }
+  return html;
+}
+function renderCadena(blockEl){
+  var html = "";
+  var actual = blockEl;
+  var salvaguarda = 0;
+  while(actual && salvaguarda < 500){
+    html += renderBloque(actual);
+    var next = primerHijoPorTag(actual, "next");
+    actual = next ? primerHijoPorTag(next, "block") : null;
+    salvaguarda++;
+  }
+  return html;
+}
+function renderPrograma(xmlTexto){
+  var dom;
+  try { dom = new DOMParser().parseFromString(xmlTexto, "text/xml"); }
+  catch(e) { return '<div class="ib">No se pudo interpretar el XML guardado.</div>'; }
+  if(dom.querySelector("parsererror")) return '<div class="ib">El programa guardado esta corrupto.</div>';
+  var raiz = dom.documentElement;
+  if(!raiz) return '<div class="ib">Sin programa.</div>';
+  var primerBloque = primerHijoPorTag(raiz, "block");
+  if(!primerBloque) return '<div class="ib">El programa guardado no tiene bloques.</div>';
+  return renderCadena(primerBloque);
+}
+
+function cargarYRenderizar(){
+  Promise.all([
+    fetch("/bloques/xml").then(function(r){return r.json();}),
+    fetch("/api").then(function(r){return r.json();})
+  ]).then(function(res){
+    var xmlInfo = res[0], estado = res[1];
+    g("ej-len").textContent = estado.proglen;
+    var progEjecutando = !!estado.running && estado.modoTexto === "BLOCKLY";
+    g("ej-estado").textContent = progEjecutando ? "EJECUTANDO" : "DETENIDO";
+    g("ej-estado").className = "sv chip " + (progEjecutando ? "cok" : "cac");
+    g("bdg").textContent = progEjecutando ? "EJECUTANDO" : "LISTO";
+    var btnEj = g("btn-ejecutar");
+    btnEj.disabled = (estado.proglen === 0) || progEjecutando;
+    btnEj.title = estado.proglen === 0 ? "No hay ningun programa compilado todavia" : "";
+    if(xmlInfo && xmlInfo.existe && xmlInfo.xml){
+      g("visor").innerHTML = renderPrograma(xmlInfo.xml);
+      g("sync-warn").style.display = xmlInfo.sincronizado ? "none" : "block";
+    } else {
+      g("visor").innerHTML = '<div class="ib">No hay ningun programa fuente guardado todavia. '+
+        'Abri <a data-app-href="bloques.html">Programacion Bloques</a>, arma un programa y presiona '+
+        '"Guardar en el Robot" o "Ejecutar".</div>';
+      g("sync-warn").style.display = "none";
+    }
+  }).catch(function(){
+    g("visor").innerHTML = '<div class="ib">No se pudo conectar con el Laboratorio.</div>';
+  });
+}
+
+// Reutiliza /bloques/run y /bloques/stop TAL CUAL — mismo motor de
+// interpretacion de programa[] que usa Programacion Bloques, no hay
+// una segunda ruta de ejecucion ni un segundo compilador.
+function ejecutarGuardado(){
+  fetch("/bloques/run").then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    cargarYRenderizar();
+  }).catch(function(e){ alert("No se pudo ejecutar: "+e.message); });
+}
+function detenerGuardado(){
+  // Mismo criterio que la corrección de bloques.html: detener limpia
+  // también programa[], para no dejar progUsaOled=true colgado.
+  fetch("/bloques/stop").then(()=>fetch("/bloques/clear")).then(cargarYRenderizar);
+}
+
+cargarYRenderizar();
+setInterval(cargarYRenderizar, 3000);
+</script>
+</body>
+</html>

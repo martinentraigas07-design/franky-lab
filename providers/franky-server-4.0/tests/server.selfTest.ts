@@ -362,5 +362,195 @@ console.log("\n9. FASE 3 (cierre) — OP_BUZZER: frecuencia y duración vía la 
   assert(lab.buzzerFreqHz === 440 && lab.buzzerDurationMs === 500, `buzzer recibe freq=440Hz dur=500ms (dio ${lab.buzzerFreqHz}/${lab.buzzerDurationMs})`);
 }
 
+console.log("\n10. FASE .franky — /proyecto/export y /proyecto/import (HTTP real, convenio 'plain')");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  const exp = server.handle("GET", "/proyecto/export", {});
+  assert(exp.status === 200, "/proyecto/export responde 200");
+  const proyecto = exp.body as any;
+  assert(proyecto.format === "FRANKY" && proyecto.version === 2, "el JSON exportado tiene forma FRANKY v2");
+
+  // Import válido: mismo convenio que server.arg("plain") real — el
+  // cuerpo completo del .franky viaja en la clave "plain".
+  const okImport = server.handle("POST", "/proyecto/import", {}, { plain: JSON.stringify(proyecto) });
+  assert(okImport.status === 200, `import válido responde 200 (dio ${okImport.status}, body=${JSON.stringify(okImport.body)})`);
+
+  // Import inválido: cuerpo vacío
+  const vacio = server.handle("POST", "/proyecto/import", {}, {});
+  assert(vacio.status === 400, "cuerpo vacío responde 400");
+
+  // Import inválido: JSON corrupto
+  const corrupto = server.handle("POST", "/proyecto/import", {}, { plain: "{esto no es json" });
+  assert(corrupto.status === 400, "JSON corrupto responde 400");
+
+  // Import inválido: sección fuera de rango -> 400, y el estado real no cambia
+  const antesTrimA = server.handle("GET", "/api", {}).body as any;
+  const malo = { ...proyecto, trim: { motorA: 9999, motorB: 255 } };
+  const rechazo = server.handle("POST", "/proyecto/import", {}, { plain: JSON.stringify(malo) });
+  assert(rechazo.status === 400, "sección inválida responde 400");
+  const despuesTrimA = server.handle("GET", "/api", {}).body as any;
+  assert(antesTrimA.trimA === despuesTrimA.trimA, "el import rechazado no modificó el estado real (atomicidad end-to-end)");
+}
+
+console.log("\n11. FASE GPIO/I2C — /gpio/estado, /i2c/set (con conflicto real), /i2c/scan (stub sin hardware)");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+
+  const estado1 = server.handle("GET", "/gpio/estado", {});
+  assert(estado1.status === 200, "/gpio/estado responde 200");
+  const snap1 = estado1.body as any;
+  assert(Array.isArray(snap1.pines) && snap1.pines.length === 13, "/gpio/estado trae los 13 pines");
+  assert(snap1.i2c_sda === 6 && snap1.i2c_scl === 7, "par I2C por defecto 6/7");
+
+  // Mini es el perfil activo por defecto (sonar dual: 20,21,6,7) — ya
+  // reservado como sensor_sumo por el constructor de FirmwareRuntime.
+  const pinLed = snap1.pines.find((p: any) => p.gpio === 8);
+  assert(pinLed && pinLed.libre === false && pinLed.motivo === "led", "GPIO8 (LED) reportado ocupado, motivo=led");
+  const pin20 = snap1.pines.find((p: any) => p.gpio === 20);
+  assert(pin20 && pin20.libre === false && pin20.motivo === "sensor_sumo", "GPIO20 (trigI de Mini) reportado ocupado, motivo=sensor_sumo");
+
+  // CONFLICTO REAL vía HTTP: intentar mover I2C a GPIO20 (ocupado por el
+  // sensor de Sumo de Mini) debe rechazarse con 409 y no tocar el estado.
+  const conflicto = server.handle("GET", "/i2c/set", { sda: "20", scl: "21" });
+  assert(conflicto.status === 409, `GPIO ocupado responde 409 (dio ${conflicto.status})`);
+  const estadoTrasConflicto = server.handle("GET", "/gpio/estado", {}).body as any;
+  assert(estadoTrasConflicto.i2c_sda === 6 && estadoTrasConflicto.i2c_scl === 7, "tras el 409, el par I2C anterior (6/7) sigue intacto");
+
+  // Faltan parámetros -> 400.
+  const sinParams = server.handle("GET", "/i2c/set", {});
+  assert(sinParams.status === 400, "sin sda/scl responde 400");
+
+  // /i2c/scan con I2C deshabilitado -> 400 (error común, no un conflicto real — CORRECCIÓN: antes usaba 409, confundible con conflicto de recursos).
+  const scanOff = server.handle("GET", "/i2c/scan", {});
+  assert(scanOff.status === 400, "/i2c/scan con I2C deshabilitado responde 400");
+
+  // Habilitar I2C (vía /panel/save, sin tocar sda/scl) y reintentar el scan.
+  server.handle("GET", "/panel/save", { i2c: "1" });
+  const scanOn = server.handle("GET", "/i2c/scan", {});
+  assert(scanOn.status === 200, "/i2c/scan con I2C habilitado responde 200");
+  assert(Array.isArray(scanOn.body) && (scanOn.body as unknown[]).length === 0, "/i2c/scan devuelve [] — sin hardware I2C simulado, nunca inventa dispositivos");
+
+  // Ahora un par SIN conflicto (GPIO10 y GPIO7 — GPIO7 quedó libre porque
+  // Mini reserva 6 (trigD) y 7 (echoD); en este caso probamos con GPIO0? no,
+  // 0/1 son ADC_FIJO. Usamos 10, que nunca está ocupado por Sumo/motor/led/boton/adc.
+  const sinConflicto = server.handle("GET", "/i2c/set", { sda: "10", scl: "6" });
+  // GPIO6 SÍ está ocupado por Mini (trigD) -> debe rechazarse también.
+  assert(sinConflicto.status === 409, "GPIO6 (trigD de Mini) también está ocupado -> 409");
+
+  // Cambiar Mini a 1 solo sensor libera trigD/echoD (6/7) antes de tocar I2C.
+  server.handle("GET", "/sumo/config", { modo: "mini", numDist: "1" });
+  const ahoraSi = server.handle("GET", "/i2c/set", { sda: "6", scl: "7" });
+  assert(ahoraSi.status === 200, `con Mini reconfigurado a 1 sensor, GPIO6/7 quedan libres y el I2C se aplica (dio ${ahoraSi.status})`);
+  const estadoFinal = server.handle("GET", "/gpio/estado", {}).body as any;
+  assert(estadoFinal.i2c_sda === 6 && estadoFinal.i2c_scl === 7, "el nuevo par (6/7) quedó aplicado");
+}
+
+console.log("\n12. FASE MONITOR/DEBUG — /monitor/log, /monitor/debug, /log (HTTP real)");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+
+  const logInicial = server.handle("GET", "/monitor/log", {});
+  assert(logInicial.status === 200, "/monitor/log responde 200");
+  const bodyInicial = logInicial.body as any;
+  assert(bodyInicial.debug === false, "DEBUG apagado por defecto");
+  assert(Array.isArray(bodyInicial.entradas), "trae un array de entradas (vacío al arrancar: el constructor no genera logs por sí solo)");
+
+  const toggleOn = server.handle("GET", "/monitor/debug", { on: "1" });
+  assert(toggleOn.status === 200 && (toggleOn.body as any).debug === true, "/monitor/debug?on=1 activa DEBUG");
+  const toggleOff = server.handle("GET", "/monitor/debug", { on: "0" });
+  assert(toggleOff.status === 200 && (toggleOff.body as any).debug === false, "/monitor/debug?on=0 lo desactiva");
+  const soloLectura = server.handle("GET", "/monitor/debug", {});
+  assert(soloLectura.status === 200 && (soloLectura.body as any).debug === false, "sin 'on', /monitor/debug es de solo lectura (no cambia el estado)");
+
+  // Generar un evento real (MODE_CHANGE) y confirmar que aparece.
+  server.handle("GET", "/sumo/mini", {});
+  const logConEvento = server.handle("GET", "/monitor/log", {});
+  const entradas = (logConEvento.body as any).entradas as any[];
+  assert(entradas.some((e) => e.msg.includes("MODE_CHANGE")), "un evento real (arrancar Mini) aparece en /monitor/log");
+
+  const logTexto = server.handle("GET", "/log", {});
+  assert(logTexto.status === 200, "/log responde 200");
+  assert(typeof logTexto.body === "string" && logTexto.body.includes("FRANKY LAB"), "/log es texto plano y se identifica como LAB virtual");
+  assert((logTexto.body as string).includes("SOLO EXISTEN EN UN ESP32 FISICO"), "/log declara explícitamente los datos que no simula");
+}
+
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  const vacio = server.handle("GET", "/bloques/xml", {}).body as any;
+  assert(vacio.existe === false, "sin guardar todavía, existe=false");
+  const xml = "<xml><block type=\"f_stop\" id=\"a\"></block></xml>";
+  const save = server.handle("POST", "/bloques/xml", {}, { plain: xml, hash: "123" });
+  assert(save.status === 200, "guardar XML responde 200");
+  const leido = server.handle("GET", "/bloques/xml", {}).body as any;
+  assert(leido.existe === true && leido.xml === xml, "el XML guardado se puede releer intacto");
+  assert(leido.sincronizado === false, "sin marcarFuente todavía, sincronizado=false");
+  server.handle("GET", "/bloques/marcarFuente", { hash: "123" });
+  const leido2 = server.handle("GET", "/bloques/xml", {}).body as any;
+  assert(leido2.sincronizado === true, "tras marcarFuente con el mismo hash, sincronizado=true");
+  const save2 = server.handle("POST", "/bloques/xml", {}, { plain: xml.replace("a", "b"), hash: "999" });
+  assert(save2.status === 200, "guardar un XML nuevo responde 200");
+  const leido3 = server.handle("GET", "/bloques/xml", {}).body as any;
+  assert(leido3.sincronizado === false, "tras cambiar el XML sin volver a marcarFuente, sincronizado vuelve a false");
+  const sinBody = server.handle("POST", "/bloques/xml", {}, {});
+  assert(sinBody.status === 400, "POST sin body responde 400");
+}
+
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { modo: "mini", numDist: "1" }); // libera GPIO6/7 (trigD/echoD) para poder usar I2C
+  const ok1 = server.handle("GET", "/i2c/set", { sda: "10", scl: "6" });
+  assert(ok1.status === 200, "guardar un par válido responde 200");
+  const estado1 = server.handle("GET", "/gpio/estado", {}).body as any;
+  assert(estado1.i2c_sda === 10 && estado1.i2c_scl === 6, "el estado refleja el nuevo par tras guardar");
+  const invalido = server.handle("GET", "/i2c/set", { sda: "0", scl: "1" });
+  assert(invalido.status === 409, "GPIO0/1 (ADC fijo) nunca son válidos para I2C");
+  const estado2 = server.handle("GET", "/gpio/estado", {}).body as any;
+  assert(estado2.i2c_sda === 10 && estado2.i2c_scl === 6, "tras un intento invalido, el par anterior se conserva intacto");
+  const mismoGpio = server.handle("GET", "/i2c/set", { sda: "20", scl: "20" });
+  assert(mismoGpio.status === 409, "SDA=SCL se rechaza");
+}
+
+console.log("\n15. /panel/save habilita I2C (toggle real del Panel Industrial — efecto real sobre el modelo)");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { modo: "mini", numDist: "1" }); // libera GPIO6/7 (por defecto ocupados por el sonar dual de Mini)
+  const antes = server.handle("GET", "/api", {}).body as any;
+  assert(antes.i2c === 0, "I2C deshabilitado por defecto");
+  server.handle("GET", "/panel/save", { i2c: "1" });
+  const despues = server.handle("GET", "/api", {}).body as any;
+  assert(despues.i2c === 1, "tras habilitar I2C desde el Panel, queda reflejado en el modelo — efecto real, no solo visual");
+  const gpio = server.handle("GET", "/gpio/estado", {}).body as any;
+  const pinSda = gpio.pines.find((p: any) => p.gpio === gpio.i2c_sda);
+  assert(pinSda.motivo === "i2c", "el GPIO SDA queda reservado como i2c en el mapa central de recursos (mismo sistema, no paralelo)");
+}
+
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/panel/save", { i2c: "1" });
+  server.handle("GET", "/oled/test", { size: "96" });
+  server.handle("GET", "/oled/logo", {});
+  const lab = server.handle("GET", "/lab/state", {}).body as any;
+  const logoEl = lab.oled.shown.find((e: any) => e.kind === "bitmap");
+  assert(!!logoEl, "el logo se dibuja como kind='bitmap' (no como texto placeholder)");
+  assert(logoEl.anchoBits === 128 && logoEl.altoBits === 64, "dimensiones correctas para 0.96\" (128x64)");
+  assert(logoEl.bitmap.length === 2048, `bitmap de 128x64 = 2048 chars hex (dio ${logoEl.bitmap.length})`);
+  assert(/^[0-9a-f]+$/.test(logoEl.bitmap), "el bitmap es hex válido");
+
+  const server2 = createProviderServer(new StubHAL());
+  server2.handle("GET", "/panel/save", { i2c: "1" });
+  server2.handle("GET", "/oled/test", { size: "91" });
+  server2.handle("GET", "/oled/logo", {});
+  const lab2 = server2.handle("GET", "/lab/state", {}).body as any;
+  const logoEl2 = lab2.oled.shown.find((e: any) => e.kind === "bitmap");
+  assert(logoEl2.altoBits === 32 && logoEl2.bitmap.length === 1024, `bitmap de 128x32 = 1024 chars hex (dio ${logoEl2.bitmap.length})`);
+}
+
 console.log(`\n${passed} pasaron, ${failed} fallaron.`);
 if (failed > 0) process.exit(1);
