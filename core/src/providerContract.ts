@@ -11,7 +11,7 @@ export type CommandResult<T = void> = { ok: true; data: T } | { ok: false; error
 export interface HttpResponse {
   status: number;
   body: unknown;
-  contentType: "application/json" | "text/plain";
+  contentType: "application/json" | "text/plain" | "text/html";
   location?: string;
 }
 

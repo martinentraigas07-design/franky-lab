@@ -112,7 +112,7 @@ async function handleApiFetch(
   const result = server.handle(method, canonicalPath, query, body);
 
   const headers: Record<string, string> = {
-    "Content-Type": result.contentType === "application/json" ? "application/json" : "text/plain",
+    "Content-Type": result.contentType === "application/json" ? "application/json" : result.contentType === "text/html" ? "text/html" : "text/plain",
     "Access-Control-Allow-Origin": "*",
   };
   // result.location, si existe, es SIEMPRE una ruta canónica absoluta-
