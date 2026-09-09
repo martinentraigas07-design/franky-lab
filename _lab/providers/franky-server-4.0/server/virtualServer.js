@@ -35,6 +35,7 @@ export function createProviderServer(hal) {
             i2c: m.i2cEnabled ? 1 : 0, spi: m.spiEnabled ? 1 : 0, dht: m.dhtOK ? 1 : 0,
             i2c_sda: m.i2cSda, i2c_scl: m.i2cScl,
             oled_det: m.oled.panelDetectado ? 1 : 0, oled_w: m.oled.panelAncho, oled_h: m.oled.panelAlto,
+            s_inicio_srv: m.sumoInicioServidor ? 1 : 0, s_inicio_btn: m.sumoInicioBoton ? 1 : 0,
             ...runtime.resumenRecursos(),
             pwmA: m.pwmA, pwmB: m.pwmB, trimA: m.trimA, trimB: m.trimB, motorSpeed: m.motorSpeed,
             adc_used: adcUsed, adc_avail: 2 - adcUsed,
@@ -106,14 +107,27 @@ export function createProviderServer(hal) {
             estrategia: p.estrategia !== undefined ? toInt(p.estrategia) : undefined,
         };
         const result = runtime.configureSumo(input);
+        if (p.inicioServidor !== undefined || p.inicioBoton !== undefined) {
+            runtime.setModoInicioSumo(p.inicioServidor !== undefined ? toInt(p.inicioServidor) !== 0 : undefined, p.inicioBoton !== undefined ? toInt(p.inicioBoton) !== 0 : undefined);
+        }
         return result.ok ? json(200, { ok: true }) : json(400, { ok: false, error: result.error });
     });
     engine.registerRoute("/sumo/trim", (q) => {
         runtime.setTrim(q.ma !== undefined ? toInt(q.ma) : undefined, q.mb !== undefined ? toInt(q.mb) : undefined);
         return ok();
     });
-    engine.registerRoute("/sumo/micro", () => { runtime.startSumo("micro"); return ok(); });
-    engine.registerRoute("/sumo/mini", () => { runtime.startSumo("mini"); return ok(); });
+    engine.registerRoute("/sumo/micro", () => {
+        const r = runtime.startSumo("micro");
+        return r.ok ? ok() : json(403, { ok: false, error: r.error });
+    });
+    engine.registerRoute("/sumo/mini", () => {
+        const r = runtime.startSumo("mini");
+        return r.ok ? ok() : json(403, { ok: false, error: r.error });
+    });
+    engine.registerRoute("/sumo/boton", () => {
+        const r = runtime.pulsarBotonSumo();
+        return r.ok ? ok() : json(403, { ok: false, error: r.error });
+    });
     engine.registerRoute("/sumo/stop", () => { runtime.stopSumo(); return ok(); });
     engine.registerRoute("/sumo/umbral", () => ok());
     // ---- Proyecto FRANKY (.franky) ----
