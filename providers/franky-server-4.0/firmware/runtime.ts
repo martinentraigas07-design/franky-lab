@@ -222,7 +222,13 @@ export class FirmwareRuntime {
     return { ok: true, data: undefined };
   }
 
-  startSumo(which: "micro" | "mini"): CommandResult {
+  /**
+   * Réplica de handleSumoMicro()/handleSumoMini() reales: siempre usa el
+   * perfil YA activo tal cual está — nunca reconstruye configuración.
+   * Compartida por ambos puntos de entrada reales (servidor y botón),
+   * cada uno con SU propio gate — ver startSumo()/pulsarBotonSumo().
+   */
+  private iniciarSumoInterno(which: "micro" | "mini"): CommandResult {
     const modoAnterior = this.model.currentMode;
     this.model.cfgActivaKey = which;
     this.model.currentMode = which === "micro" ? RobotMode.MICRO : RobotMode.MINI;
@@ -237,6 +243,42 @@ export class FirmwareRuntime {
       flog(this.model, this.hal, "I", `MODE_CHANGE ${modoTexto(modoAnterior)} -> ${modoTexto(this.model.currentMode)}`);
     }
     return { ok: true, data: undefined };
+  }
+
+  /** Réplica de handleSumoMicro()/handleSumoMini() reales — inicio desde el servidor, con su propio gate (sumoInicioServidor). */
+  startSumo(which: "micro" | "mini"): CommandResult {
+    if (!this.model.sumoInicioServidor) {
+      return { ok: false, error: 'Inicio desde el servidor deshabilitado (ver "Modo de inicio" en Sumo)' };
+    }
+    return this.iniciarSumoInterno(which);
+  }
+
+  /**
+   * Réplica de iniciarSumoDesdeBoton() real: mismo efecto que iniciar
+   * desde el servidor, pero usando SIEMPRE el perfil YA activo (nunca
+   * elige ni reconstruye) — doble gate de seguridad idéntico al real:
+   * (1) sumoInicioBoton habilitado, (2) currentMode===IDLE.
+   * DIFERENCIA DOCUMENTADA: el real detecta un flanco eléctrico
+   * debounced de un GPIO físico (GPIO9) sondeado continuamente; el LAB
+   * no tiene ruido eléctrico que filtrar — este método representa
+   * directamente "se detectó una pulsación limpia", disparado por un
+   * único click del botón virtual en la UI.
+   */
+  /** Réplica del manejo de inicioServidor/inicioBoton en handleSumoConfig() real — gates globales, no per-perfil. */
+  setModoInicioSumo(servidor?: boolean, boton?: boolean): CommandResult {
+    if (servidor !== undefined) this.model.sumoInicioServidor = servidor;
+    if (boton !== undefined) this.model.sumoInicioBoton = boton;
+    flog(this.model, this.hal, "I", `Modo de inicio Sumo: servidor=${this.model.sumoInicioServidor} boton=${this.model.sumoInicioBoton}`);
+    return { ok: true, data: undefined };
+  }
+
+  pulsarBotonSumo(): CommandResult {
+    if (!this.model.sumoInicioBoton || this.model.currentMode !== RobotMode.IDLE) {
+      return { ok: false, error: "El boton de inicio esta deshabilitado o el robot no esta libre (IDLE)" };
+    }
+    const r = this.iniciarSumoInterno(this.model.cfgActivaKey);
+    flog(this.model, this.hal, "I", `Sumo iniciado desde el boton virtual (GPIO${PIN.boton}) — perfil activo: ${this.model.cfgActivaKey === "micro" ? "MICRO" : "MINI"}`);
+    return r;
   }
 
   stopSumo(): CommandResult {
@@ -265,6 +307,8 @@ export class FirmwareRuntime {
       this.model.cfgMini,
       this.model.cfgMicro,
       this.model.cfgActivaKey === "micro" ? 1 : 0,
+      this.model.sumoInicioServidor,
+      this.model.sumoInicioBoton,
       this.model.i2cEnabled,
       this.model.i2cSda,
       this.model.i2cScl,
@@ -304,6 +348,10 @@ export class FirmwareRuntime {
     if (r.perfilActivo !== undefined && this.model.currentMode === RobotMode.IDLE) {
       this.model.cfgActivaKey = r.perfilActivo === 1 ? "micro" : "mini";
     }
+    // FASE "PERSISTENCIA SUMO" — opcionales a propósito (un .franky viejo
+    // no los trae): si vienen, se aplican; si no, se conserva lo actual.
+    if (r.inicioServidor !== undefined) this.model.sumoInicioServidor = r.inicioServidor;
+    if (r.inicioBoton !== undefined) this.model.sumoInicioBoton = r.inicioBoton;
     // El .ino real reinicia (ESP.restart()) tras un import, lo que
     // re-ejecuta gpioSincronizarBuses()/gpioAplicarReservasSumoActivo()
     // en setup(). El LAB no reinicia (diferencia documentada/confirmada)

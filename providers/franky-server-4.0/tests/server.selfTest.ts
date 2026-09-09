@@ -554,3 +554,108 @@ console.log("\n15. /panel/save habilita I2C (toggle real del Panel Industrial �
 
 console.log(`\n${passed} pasaron, ${failed} fallaron.`);
 if (failed > 0) process.exit(1);
+
+console.log("\n17. PERSISTENCIA SUMO — FLUJO A: configurar → salir/volver (simulado) → recuperar configuración");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { modo: "mini", tipo: "sharp", numDist: "1", numBorde: "0", sharpI: "1", umbral_sharp: "1234", spdAtaque: "111" });
+  // "Salir y volver" = una página nueva que solo tiene /proyecto/export para reconstruir su UI (nunca localStorage).
+  const proyecto = server.handle("GET", "/proyecto/export", {}).body as any;
+  assert(proyecto.sumo.mini.tipoDistSensor === 2, "tipoDistSensor (sharp=2) se recupera vía /proyecto/export");
+  assert(proyecto.sumo.mini.sharpPinI === 1, "sharpPinI se recupera");
+  assert(proyecto.sumo.mini.umbralSharp === 1234, "umbralSharp se recupera");
+  assert(proyecto.sumo.mini.spdAtaque === 111, "spdAtaque se recupera");
+}
+
+console.log("\n18. PERSISTENCIA SUMO — FLUJO B: configurar → exportar → cambiar → importar anterior → recuperar original");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { modo: "mini", spdAtaque: "200", numDist: "1" });
+  const original = server.handle("GET", "/proyecto/export", {}).body;
+  server.handle("GET", "/sumo/config", { modo: "mini", spdAtaque: "77", numDist: "1" }); // cambio
+  const cambiado = server.handle("GET", "/api", {}).body as any;
+  assert(cambiado.s_atk === 77, "la config cambió realmente antes de re-importar");
+  const restaurar = server.handle("POST", "/proyecto/import", {}, { plain: JSON.stringify(original) });
+  assert(restaurar.status === 200, "importar el proyecto anterior se acepta");
+  const final = server.handle("GET", "/api", {}).body as any;
+  assert(final.s_atk === 200, "spdAtaque vuelve al valor original tras importar (200, no 77)");
+}
+
+console.log("\n19. MODO DE INICIO — nomenclatura real y defaults (sumoInicioServidor=true, sumoInicioBoton=false)");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  const api = server.handle("GET", "/api", {}).body as any;
+  assert(api.s_inicio_srv === 1, "por defecto, inicio desde servidor HABILITADO (igual que el .ino real)");
+  assert(api.s_inicio_btn === 0, "por defecto, inicio desde botón DESHABILITADO (igual que el .ino real)");
+}
+
+console.log("\n20. FLUJO C — Inicio desde Servidor: gate sumoInicioServidor");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { inicioServidor: "0" });
+  const r = server.handle("GET", "/sumo/mini", {});
+  assert(r.status !== 200 || (r.body as any).ok === false, "con inicio-desde-servidor deshabilitado, /sumo/mini NO arranca Sumo");
+  const api = server.handle("GET", "/api", {}).body as any;
+  assert(api.mode === 0, "el modo sigue IDLE — no arrancó nada");
+  server.handle("GET", "/sumo/config", { inicioServidor: "1" });
+  const r2 = server.handle("GET", "/sumo/mini", {});
+  const api2 = server.handle("GET", "/api", {}).body as any;
+  assert(api2.mode === 2, "con inicio-desde-servidor habilitado de nuevo, /sumo/mini SÍ arranca (mode=2=MINI)");
+}
+
+console.log("\n21. FLUJO D — Inicio desde el botón virtual: doble gate + usa SIEMPRE el perfil ya activo");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  // Gate 1: boton deshabilitado por defecto -> no debe hacer nada.
+  const sinHabilitar = server.handle("GET", "/sumo/boton", {});
+  assert(sinHabilitar.status !== 200 || (sinHabilitar.body as any).ok === false, "botón deshabilitado por defecto -> sin efecto");
+  assert((server.handle("GET", "/api", {}).body as any).mode === 0, "sigue IDLE");
+
+  // Habilitar el botón; perfil activo por defecto es Mini.
+  server.handle("GET", "/sumo/config", { inicioBoton: "1" });
+  const r = server.handle("GET", "/sumo/boton", {});
+  assert(r.status === 200, "con el botón habilitado y el robot IDLE, el botón SÍ arranca Sumo");
+  const api = server.handle("GET", "/api", {}).body as any;
+  assert(api.mode === 2, "arrancó con el perfil YA activo (Mini=2) — el botón no elige perfil, igual que el real");
+
+  // Gate 2: mientras está corriendo (no IDLE), una segunda pulsación no debe hacer nada.
+  const r2 = server.handle("GET", "/sumo/boton", {});
+  assert(r2.status !== 200 || (r2.body as any).ok === false, "con el robot ya corriendo (no IDLE), el botón no tiene efecto (mismo gate que el real)");
+}
+
+console.log("\n22. FLUJO E — Sumo + modo de inicio: exportar/importar recupera AMBOS estados juntos");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  server.handle("GET", "/sumo/config", { modo: "micro", spdAtaque: "222", inicioServidor: "0", inicioBoton: "1" });
+  const proyecto = server.handle("GET", "/proyecto/export", {}).body as any;
+  assert(proyecto.sumo.inicio.servidor === false && proyecto.sumo.inicio.boton === true, "el .franky exportado incluye el modo de inicio real (no un valor fijo)");
+  assert(proyecto.sumo.micro.spdAtaque === 222, "y también la config de Sumo modificada");
+
+  const server2 = createProviderServer(new StubHAL());
+  const importar = server2.handle("POST", "/proyecto/import", {}, { plain: JSON.stringify(proyecto) });
+  assert(importar.status === 200, "importar en un Laboratorio limpio se acepta");
+  const api2 = server2.handle("GET", "/api", {}).body as any;
+  assert(api2.s_inicio_srv === 0 && api2.s_inicio_btn === 1, "el modo de inicio se recuperó tras importar");
+  assert((server2.handle("GET", "/proyecto/export", {}).body as any).sumo.micro.spdAtaque === 222, "y la config de Sumo también se recuperó");
+}
+
+console.log("\n23. FLUJO F — Compatibilidad .franky: un archivo SIN sección 'inicio' (formato anterior) sigue importando bien");
+{
+  const hal = new StubHAL();
+  const server = createProviderServer(hal);
+  const proyecto = server.handle("GET", "/proyecto/export", {}).body as any;
+  delete proyecto.sumo.inicio; // simula un .franky exportado ANTES de esta fase
+  const r = server.handle("POST", "/proyecto/import", {}, { plain: JSON.stringify(proyecto) });
+  assert(r.status === 200, "un .franky sin sección 'inicio' (formato viejo) se importa igual, sin romperse");
+  const api = server.handle("GET", "/api", {}).body as any;
+  assert(api.s_inicio_srv === 1 && api.s_inicio_btn === 0, "sin esa sección, se conservan los valores por defecto (no se corrompe el estado)");
+}
+
+console.log(`\n${passed} pasaron, ${failed} fallaron.`);
+if (failed > 0) process.exit(1);

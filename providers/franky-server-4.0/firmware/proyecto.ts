@@ -13,10 +13,10 @@
  * - I2C: FASE GPIO/I2C (posterior) cerró la limitación original de esta
  *   sección — SDA/SCL ya son configurables (pool {6,7,10,20,21}, ver
  *   gpio.ts). validarI2C() valida contra ese pool real, no un par fijo.
- * - "Modo de inicio" (servidor/botón): el LAB no modela esta restricción
- *   (fase "Persistencia Sumo" del Server real, no portada). Se exporta
- *   un valor fijo (ambos habilitados) — no hay campo real que actualizar
- *   al importar.
+ * - "Modo de inicio" (servidor/botón): FASE "PERSISTENCIA SUMO" (Sesión 3)
+ *   cerró esta limitación — ahora son campos reales del Firmware Model
+ *   (sumoInicioServidor/sumoInicioBoton), leídos/escritos igual que el
+ *   resto de la sección "sumo" del proyecto.
  * - Blockly XML: el LAB no tiene un equivalente a SPIFFS ("Programa
  *   Fuente") donde persista el XML del lado del "robot" — sigue siendo
  *   responsabilidad del navegador (bloques.html/localStorage), igual
@@ -252,6 +252,8 @@ export function generarProyectoJson(
   cfgMini: SumoConfig,
   cfgMicro: SumoConfig,
   perfilActivo: 0 | 1,
+  inicioServidor: boolean,
+  inicioBoton: boolean,
   i2cEnabled: boolean,
   i2cSda: number,
   i2cScl: number,
@@ -269,9 +271,9 @@ export function generarProyectoJson(
       mini: proyectoJsonSumo(cfgMini, true, velExterna, velInterna),
       micro: proyectoJsonSumo(cfgMicro, false, velExterna, velInterna),
       perfilActivo,
-      // Ver nota de ALCANCE: el LAB no modela restricciones de "modo de
-      // inicio" — valor fijo, no hay campo real que refleje.
-      inicio: { servidor: true, boton: true },
+      // FASE "PERSISTENCIA SUMO" (Sesión 3) — valores reales del
+      // Firmware Model (antes fijo {true,true}, sin campo real detrás).
+      inicio: { servidor: inicioServidor, boton: inicioBoton },
     },
     i2c: { enabled: i2cEnabled, sda: i2cSda, scl: i2cScl },
     spi: { enabled: spiEnabled },
@@ -289,6 +291,8 @@ export interface ProyectoImportResult {
   cfgMini: SumoConfig;
   cfgMicro: SumoConfig;
   perfilActivo?: 0 | 1;
+  inicioServidor?: boolean;
+  inicioBoton?: boolean;
   i2cEnabled: boolean;
   i2cSda: number;
   i2cScl: number;
@@ -338,5 +342,17 @@ export function validarProyectoImport(body: unknown, baseMini: SumoConfig, baseM
   const perfilRaw = sumoObj["perfilActivo"];
   if (perfilRaw === 0 || perfilRaw === 1) perfilActivo = perfilRaw;
 
-  return { cfgMini, cfgMicro, perfilActivo, i2cEnabled, i2cSda, i2cScl, spiEnabled, trimA, trimB, blocklyXml };
+  // "inicio" — FASE "PERSISTENCIA SUMO" (Sesión 3): también OPCIONAL,
+  // mismo criterio que perfilActivo (un .franky viejo no lo trae y debe
+  // seguir importando sin error).
+  let inicioServidor: boolean | undefined;
+  let inicioBoton: boolean | undefined;
+  const inicioRaw = sumoObj["inicio"];
+  if (typeof inicioRaw === "object" && inicioRaw !== null && !Array.isArray(inicioRaw)) {
+    const inicioObj = inicioRaw as Record<string, unknown>;
+    if (typeof inicioObj["servidor"] === "boolean") inicioServidor = inicioObj["servidor"];
+    if (typeof inicioObj["boton"] === "boolean") inicioBoton = inicioObj["boton"];
+  }
+
+  return { cfgMini, cfgMicro, perfilActivo, inicioServidor, inicioBoton, i2cEnabled, i2cSda, i2cScl, spiEnabled, trimA, trimB, blocklyXml };
 }

@@ -255,6 +255,12 @@ export interface FirmwareModel {
   recuperacionHaciaIzquierda: boolean;
   tRecuperacion: number;
   ultimoAtaqueDirLog: number; // FASE MONITOR/DEBUG — -1=sin ataque, 0=ambos, 1=izq, 2=der (log por flanco, no por tick)
+  // FASE "PERSISTENCIA SUMO" (Sesión 3) — réplica de sumoInicioServidor/
+  // sumoInicioBoton reales: dos gates INDEPENDIENTES, cada uno con su
+  // propio permiso — iniciar desde el servidor (/sumo/mini,/sumo/micro)
+  // e iniciar desde el botón virtual, nunca comparten camino.
+  sumoInicioServidor: boolean; // default true — el servidor SIEMPRE pudo iniciar Sumo
+  sumoInicioBoton: boolean; // default false — el botón NUNCA iniciaba Sumo antes de esta fase
 
   tInicioModo: number;
   retardoOK: boolean;
@@ -410,6 +416,8 @@ export function defaultFirmwareModel(): FirmwareModel {
     recuperacionHaciaIzquierda: true,
     tRecuperacion: 0,
     ultimoAtaqueDirLog: -1,
+    sumoInicioServidor: true,
+    sumoInicioBoton: false,
     tInicioModo: 0,
     retardoOK: false,
     programa: [],
