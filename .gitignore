@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Salida del compilador TypeScript (core/ + providers/*, ver tsconfig.json)
+dist/
+
+# Bundle compilado del Service Worker (ver tsconfig.sw.json)
+dist-sw/
+
+# public/ es 100% generado por `npm run build:public` a partir de
+# providers/*/assets + public-src/ (ver build/copy-to-public.mjs).
+# Es la fuente que usa SPIFFS en el firmware físico, pero el árbol en
+# sí es un artefacto de build: no se edita a mano, no se versiona.
+public/
+
+# gh-pages/ es una copia 1:1 de public/, generada por
+# `npm run build:ghpages` para publicar en GitHub Pages. Tampoco se
+# versiona — se genera en CI (o a mano) antes de cada deploy.
+gh-pages/
+
+# Editores / SO
+.DS_Store
+*.log
