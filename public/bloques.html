@@ -5,9 +5,9 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>Franky 4.0 - Bloques</title>
-<link rel="stylesheet" href="/style.css">
-<script src="/franky_prefs.js"></script>
-<script src="/monitor.js"></script>
+<link rel="stylesheet" href="./style.css">
+<script src="./franky_prefs.js"></script>
+<script src="./monitor.js"></script>
 <script>Monitor.setContext("Blockly");</script>
 <style>
 #bly-wrap{position:relative;width:100%;height:360px;min-height:280px;border:1px solid var(--brd);
@@ -73,7 +73,7 @@
 </head>
 <body>
 <div class="tb">
-  <img src="/logo.jpg" alt="MDE">
+  <img src="./logo.jpg" alt="MDE">
   <div><div class="ttl">FRANKY 4.0</div><div class="sub">Programacion con Bloques</div></div>
   <div class="bdg" id="bdg">EDITOR</div>
 </div>
@@ -163,7 +163,7 @@ void loop() { }</div>
   </div>
   <div class="row" style="margin-top:6px">
     <button class="bi" onclick="guardarPrograma(true)">&#128190; Guardar en el Robot</button>
-    <a href="/programa.html" class="btn bg" style="flex:1;text-align:center">&#128065; Ver / Ejecutar</a>
+    <a href="./programa.html" class="btn bg" style="flex:1;text-align:center">&#128065; Ver / Ejecutar</a>
   </div>
 </div>
 
@@ -222,8 +222,8 @@ function loadScript(src, cb) {
 // Los archivos se sirven como .gz con Content-Encoding: gzip
 // blockly_compressed.js dividido en 5 partes para poder subir a SPIFFS
 // El browser las carga secuencialmente — es transparente, funciona igual
-var BLY_CHUNKS = ["/bly_core_1.js","/bly_core_2.js","/bly_core_3.js","/bly_core_4.js","/bly_core_5.js"];
-var BLY_OTHERS = ["/bly_blocks.js","/bly_js.js","/bly_msg.js"];
+var BLY_CHUNKS = ["./bly_core_1.js","./bly_core_2.js","./bly_core_3.js","./bly_core_4.js","./bly_core_5.js"];
+var BLY_OTHERS = ["./bly_blocks.js","./bly_js.js","./bly_msg.js"];
 var blyIdx = 0;
 
 function updLoad(msg) {
