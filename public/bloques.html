@@ -1,15 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script src="base.js"></script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>Franky 4.0 - Bloques</title>
-<link rel="stylesheet" href="./style.css">
-<script src="./base.js"></script>
-<script src="./franky_prefs.js"></script>
-<script src="./monitor.js"></script>
-<script>Monitor.setContext("Blockly");</script>
+<!-- CORRECCIÓN Fase 2 P0 (auditoría estructural): esta página había quedado
+     con <link>/<script src="./..."> fijos en vez del mecanismo portable
+     resolveUrl() que usan TODAS las demás páginas (sumo.html, panel.html,
+     monitor.html, index.html) — ver base.js para el por qué. En este
+     despliegue concreto (style.css/franky_prefs.js/monitor.js siempre
+     conviven en la misma carpeta que bloques.html) ambas formas resuelven
+     igual, pero se restaura el mismo mecanismo que el resto del proyecto
+     para no dejar una excepción silenciosa si el árbol de archivos cambia. -->
+<script>document.write('<link rel="stylesheet" href="' + resolveUrl("style.css") + '">');</script>
+<script>document.write('<script src="' + resolveUrl("franky_prefs.js") + '"><\/script>');</script>
+<script>document.write('<script src="' + resolveUrl("monitor.js") + '"><\/script>');</script>
+<script>if (typeof Monitor !== "undefined") Monitor.setContext("Blockly");</script>
 <style>
 #bly-wrap{position:relative;width:100%;height:360px;min-height:280px;border:1px solid var(--brd);
   border-radius:8px;overflow:hidden;background:#1a1a2e;margin-bottom:10px;}
@@ -192,11 +200,26 @@ void loop() { }</div>
   <div class="st"><span class="sl">Temp DHT22</span><span class="sv" id="tmp2">-</span></div>
 </div>
 
-<a href="/" class="btn bg">&#8962; Volver</a>
+<!-- CORRECCIÓN NAV-01 (auditoría estructural Fase 2 P0): esta era la ÚNICA
+     página del proyecto con un href absoluto-desde-raíz-del-dominio ("/")
+     en vez del mecanismo portable data-app-href + rewriteDom() (ver
+     base.js) que usan TODAS las demás (sumo.html, panel.html, monitor.html,
+     etc.). Bajo GitHub Project Pages (ej. https://usuario.github.io/
+     franky-lab/bloques.html) esto navegaba a la raíz del DOMINIO
+     (https://usuario.github.io/) en vez de la raíz de la APP
+     (.../franky-lab/index.html) -> 404 real, reproducido y confirmado. -->
+<a data-app-href="index.html" class="btn bg">&#8962; Volver</a>
 </div>
 
 <!-- Cargar Blockly desde SPIFFS (rutas locales) -->
 <script>
+// CORRECCIÓN NAV-01 — esta página era la única que NUNCA llamaba a
+// FRANKY_BASE.rewriteDom() (ver base.js): sin esta llamada, el
+// data-app-href="index.html" del enlace "Volver" de arriba queda como un
+// atributo inerte (sin href real) y el enlace no navega a ningún lado.
+// Mismo lugar/orden que usan todas las demás páginas (sumo.html,
+// panel.html, monitor.html, etc.): primero rewriteDom(), después el resto.
+FRANKY_BASE.rewriteDom();
 var BLOCKLY_LOADED = false;
 var workspace = null;
 
@@ -328,6 +351,32 @@ function mkPinOpts() {
   ];
 }
 
+// SENS-01 — lista de pines para el bloque "Sonar TRIG/ECHO" (f_ultrasonic),
+// identificando además la correspondencia DE FÁBRICA con los sonares que
+// Sumo ya trae configurados (defaultSumoConfigMicro()/Mini() en el
+// firmware): GPIO20/21 = sonar IZQUIERDO (TRIG/ECHO) en AMBOS perfiles;
+// GPIO6/7 = sonar DERECHO (TRIG/ECHO), solo relevante en Micro con 2
+// sensores. Así, elegir TRIG20+ECHO21 (o TRIG6+ECHO7 en Micro) en Blockly
+// reproduce exactamente la lectura simulada de ESE sensor en el Laboratorio
+// (ver OP_PUSH_SONAR en runtime.ts) — no un tercer sensor inventado.
+// Cualquier otra combinación sigue siendo válida como sonar INDEPENDIENTE
+// cableado aparte en el robot físico (el .ino no depende de la config de
+// Sumo para este bloque); el Laboratorio, al no tener electricidad real,
+// la reporta como "sin eco" (999) en vez de inventar una tercera lectura.
+// Mismo límite que ya tienen las etiquetas "(I2C off)"/"(SPI off)" de
+// mkPinOpts(): describen la asignación de FÁBRICA, no el estado reconfigurado
+// en vivo si el usuario cambió los pines de Sumo desde /sumo/config.
+function mkSonarPinOpts() {
+  return mkPinOpts().map(function (opt) {
+    var label = opt[0], val = opt[1];
+    if (val === "20") label = "GPIO20 — Sonar IZQUIERDO TRIG (fábrica, Micro y Mini) / SCLK (SPI off)";
+    else if (val === "21") label = "GPIO21 — Sonar IZQUIERDO ECHO (fábrica, Micro y Mini) / MOSI (SPI off)";
+    else if (val === "6") label = "GPIO6 — Sonar DERECHO TRIG (fábrica, solo Micro con 2 sensores) / SDA (I2C off)";
+    else if (val === "7") label = "GPIO7 — Sonar DERECHO ECHO (fábrica, solo Micro con 2 sensores) / SCL (I2C off)";
+    return [label, val];
+  });
+}
+
 // ── Toolbox ───────────────────────────────────────────
 var TOOLBOX = `<xml xmlns="https://developers.google.com/blockly/xml">
 <category name="Motores" colour="#e05a00">
@@ -435,7 +484,7 @@ function defBlocks() {
     // Sensores
     {type:"f_adc",message0:"Leer ADC %1 prom %2",args0:[{type:"field_dropdown",name:"GPIO",options:[["GPIO0","0"],["GPIO1","1"]]},{type:"field_number",name:"N",value:1,min:1,max:16}],output:"Number",colour:"#00897b"},
     {type:"f_din",message0:"Leer digital %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Boolean",colour:"#00897b"},
-    {type:"f_ultrasonic",message0:"Sonar TRIG %1 ECHO %2 (cm)",args0:[{type:"field_dropdown",name:"TRIG",options:mkPinOpts()},{type:"field_dropdown",name:"ECHO",options:mkPinOpts()}],output:"Number",colour:"#00838f",tooltip:"Requiere NewPing"},
+    {type:"f_ultrasonic",message0:"Sonar TRIG %1 ECHO %2 (cm)",args0:[{type:"field_dropdown",name:"TRIG",options:mkSonarPinOpts()},{type:"field_dropdown",name:"ECHO",options:mkSonarPinOpts()}],output:"Number",colour:"#00838f",tooltip:"TRIG20/ECHO21 = sonar izquierdo de Sumo (fábrica); TRIG6/ECHO7 = sonar derecho (solo Micro). Otra combinación = sonar independiente cableado aparte. Requiere NewPing en el firmware físico."},
     {type:"f_dht_temp",message0:"DHT22 temperatura GPIO %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Number",colour:"#00796b"},
     {type:"f_dht_hum",message0:"DHT22 humedad GPIO %1",args0:[{type:"field_dropdown",name:"GPIO",options:mkPinOpts()}],output:"Number",colour:"#00796b"},
     {type:"f_millis",message0:"millis()",output:"Number",colour:"#f57f17"},

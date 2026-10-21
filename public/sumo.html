@@ -472,6 +472,12 @@
 </div>
 
 <!-- ══ 9. CONTROL ══ -->
+<!-- SUMO-01: botón explícito para guardar sensores/estrategia/velocidades/
+     modo de inicio SIN arrancar el combate (antes esto solo se guardaba
+     como efecto secundario de presionar "INICIAR SUMO"). Siempre visible,
+     corriendo o no el combate, porque guardarConfigSumo() nunca toca el
+     estado de ejecución — ver guardarConfigSumoBtn() más abajo. -->
+<button class="btn ba" id="btn-guardar-cfg" onclick="guardarConfigSumoBtn()" style="width:100%;margin-bottom:8px">💾 Guardar configuración</button>
 <div id="sec-start">
   <button class="bd" id="btn-start" onclick="iniciarSumo()">▶ INICIAR SUMO</button>
 </div>
@@ -764,18 +770,17 @@ function g(id) { return document.getElementById(id); }
 // ════════════════════════════════════════════════════════
 //  INICIAR / DETENER
 // ════════════════════════════════════════════════════════
-function iniciarSumo() {
-  // Bloquear si hay conflicto ADC
-  if (countADC() > 2) {
-    alert("⚠ Conflicto ADC: estás usando " + countADC() + " pines ADC pero el ESP32-C3 solo tiene 2.\n\nReducí sensores Sharp o de borde.");
-    return;
-  }
-
+// SUMO-01 — arma el mismo query string que antes armaba iniciarSumo() de
+// forma inline, pero como función PURA y reutilizable: no hace ningún
+// fetch, no inicia nada. La usan tanto guardarConfigSumo() (botón nuevo,
+// SOLO guarda) como iniciarSumo() (guarda Y arranca el combate), para que
+// ambos caminos construyan EXACTAMENTE la misma configuración — ninguna
+// lógica duplicada que pueda desincronizarse.
+function construirQsConfigSumo() {
   var tipo  = document.getElementById("tipo-dist").value;
   var nDist = PERFIL==="mini" ? parseInt(g("num-dist").value) : 1;
   var nBorde = parseInt(g("num-borde").value);
 
-  // Construir query string para /sumo/config
   var p = {
     modo:     PERFIL,
     tipo:     tipo,
@@ -816,16 +821,47 @@ function iniciarSumo() {
     p.umbral_borde_mini = p.umbral_borde || 1500;
   }
 
-  var qs = Object.keys(p).map(function(k){return k+"="+p[k];}).join("&");
-  var endpoint = PERFIL==="micro" ? "/sumo/micro" : "/sumo/mini";
+  return Object.keys(p).map(function(k){return k+"="+p[k];}).join("&");
+}
 
-  fetch("/sumo/config?"+qs).then(function(r){
-    return r.json();
-  }).then(function(d){
+// SUMO-01 — guarda la configuración actual (sensores, estrategia,
+// velocidades, modo de inicio) en el Firmware Model real vía /sumo/config,
+// SIN iniciar ningún combate (nunca llama a /sumo/micro ni /sumo/mini).
+// Es la misma llamada HTTP que YA hacía iniciarSumo() antes de arrancar —
+// acá queda disponible sola, para el botón "💾 Guardar configuración".
+// Devuelve la Promise de fetch, para que el caller decida qué hacer con
+// el resultado (alert propio, o encadenar el arranque en iniciarSumo()).
+function guardarConfigSumo() {
+  if (countADC() > 2) {
+    alert("⚠ Conflicto ADC: estás usando " + countADC() + " pines ADC pero el ESP32-C3 solo tiene 2.\n\nReducí sensores Sharp o de borde.");
+    return Promise.reject(new Error("conflicto ADC"));
+  }
+  var qs = construirQsConfigSumo();
+  return fetch("/sumo/config?"+qs).then(function(r){ return r.json(); });
+}
+
+// SUMO-01 — botón "💾 Guardar configuración": guarda sensores/estrategia/
+// velocidades/modo de inicio sin arrancar el combate, con feedback visual
+// propio (no un alert bloqueante salvo error, igual que el resto del Panel).
+function guardarConfigSumoBtn() {
+  guardarConfigSumo().then(function(d){
+    if (!d.ok) { alert("⚠ Error firmware: " + (d.error || "configuración rechazada")); return; }
+    var btn = g("btn-guardar-cfg");
+    if (btn) {
+      var txtOriginal = btn.textContent;
+      btn.textContent = "✓ Guardado";
+      setTimeout(function(){ btn.textContent = txtOriginal; }, 1500);
+    }
+  }).catch(function(e){ if (e.message !== "conflicto ADC") alert("Error: "+e.message); });
+}
+
+function iniciarSumo() {
+  guardarConfigSumo().then(function(d){
     if (!d.ok) {
       alert("⚠ Error firmware: " + (d.error || "configuración rechazada"));
       return;
     }
+    var endpoint = PERFIL==="micro" ? "/sumo/micro" : "/sumo/mini";
     return fetch(endpoint).then(function(r){
       if (!r.ok) return r.json().then(function(d2){ throw new Error(d2.error || "inicio rechazado"); });
       g("sec-stop").style.display  = "block";
@@ -834,7 +870,7 @@ function iniciarSumo() {
       g("active-warn").textContent = "MODO ACTIVO — "+lbl+" — retardo 5 seg de seguridad...";
       g("bdg").textContent = lbl;
     });
-  }).catch(function(e){ alert("Error: "+e.message); });
+  }).catch(function(e){ if (e.message !== "conflicto ADC") alert("Error: "+e.message); });
 }
 
 function detenerSumo() {

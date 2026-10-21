@@ -179,7 +179,7 @@ export function defaultSumoConfigMicro() {
     };
 }
 export function defaultFirmwareModel() {
-    return {
+    const m = {
         currentMode: RobotMode.IDLE,
         modeRunning: false,
         motorSpeed: 200,
@@ -211,12 +211,14 @@ export function defaultFirmwareModel() {
         bEsperando: false,
         tBloque: 0,
         bEsperaMs: 0,
-        varGlobal: 0,
+        varGlobal: 0, // placeholder — se redefine como accessor de varTabla[0] más abajo, antes de devolver el objeto
+        varTabla: [0, 0, 0, 0],
         adcLast: 0,
         servoGPIO: -1,
         servoAngle: 0,
         pila: [],
         callStack: [],
+        repeatStack: [],
         oled: defaultOledState(),
         serialLog: [],
         programaFuenteXml: null,
@@ -246,6 +248,22 @@ export function defaultFirmwareModel() {
         sharpDetI: false,
         sharpDetD: false,
     };
+    // varGlobal es un accessor que lee/escribe varTabla[0] — NO una copia
+    // independiente. Réplica exacta de "#define varGlobal varTabla[0]" del
+    // .ino físico (ver model.ts línea de OP_PUSH_VAR más arriba): así, un
+    // programa que mezcle la variable única vieja (OP_VAR_SET/ADD/SUB,
+    // f_var_set/f_var_add) con variables nuevas con nombre (OP_PUSH_VAR/
+    // VAR_SET_EXPR, variables_get/variables_set) ve el mismo valor que vería
+    // el firmware real, sin que el Lab necesite mantener dos estados en
+    // paralelo. Todo el código existente (`m.varGlobal = x`, `model.varGlobal`
+    // en getLabTelemetry(), los tests) sigue funcionando sin cambios.
+    Object.defineProperty(m, "varGlobal", {
+        get() { return m.varTabla[0]; },
+        set(v) { m.varTabla[0] = v; },
+        enumerable: true,
+        configurable: true,
+    });
+    return m;
 }
 /**
  * Logo MDE REAL (no placeholder de texto) — convertido desde la imagen
