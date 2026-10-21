@@ -1,0 +1,49 @@
+name: Compilar FRANKY-LAB Fase 2 P0 (validación)
+on:
+  push:
+    branches: [fase2-p0-validacion]
+    paths:
+      - 'providers/franky-server-4.0/assets/bloques.html'
+      - '.github/workflows/franky-lab-fase2-validacion.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Pruebas unitarias
+        run: npm test
+      - name: Generar distribución completa
+        run: npm run build:release
+      - name: Verificar archivos esenciales
+        shell: bash
+        run: |
+          test -s public/bloques.html
+          test -s public/sw.js
+          test -s public/_lab/providers/franky-server-4.0/firmware/runtime.js
+          test -s gh-pages/bloques.html
+          test -s _lab/providers/franky-server-4.0/firmware/runtime.js
+          cmp public/bloques.html bloques.html
+      - name: Registrar distribución en rama de validación
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f -A -- public gh-pages _lab
+          for f in gh-pages/*; do
+            if [ -f "$f" ]; then git add -f -- "$(basename "$f")"; fi
+          done
+          if ! git diff --cached --quiet; then
+            git commit -m "build: publicar distribución Fase 2 P0 [skip ci]"
+            git push origin HEAD:fase2-p0-validacion
+          fi
