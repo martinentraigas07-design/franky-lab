@@ -19,8 +19,24 @@ if (!targetScript) throw new Error("No se encontró parseBlock en bloques.html �
 // y resolveUrl() a nivel superior (infraestructura de portabilidad de
 // despliegue, ver base.js) — acá no importa el resultado, solo que no
 // revienten fuera de un navegador real.
+// window/document mínimos: Fase 2 P0 agregó ajustarAlturaBlockly() (ajuste
+// RESPONSIVE del alto del Workspace), que registra listeners de resize a
+// NIVEL SUPERIOR del script (window.addEventListener("resize"/"orientation
+// change", ...), fuera de cualquier función — en un navegador real `window`
+// siempre existe y esto es inofensivo, pero este sandbox de Node no lo
+// define, y el script fallaba al evaluarse ANTES de llegar a parseBlock/OP
+// (ver bug real detectado: no es una regresión de producción, es un stub
+// de test que quedó corto tras la Fase 2 P0). Alcanza con exponer lo que
+// este script realmente toca a nivel superior — nada se ejecuta en un
+// navegador real distinto a esto para esas líneas.
+const fakeWindow = {
+  innerHeight: 600,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+};
 const sandbox = {
   console,
+  window: fakeWindow,
   FRANKY_BASE: { rewriteDom: () => {}, resolveUrl: (s) => s, resolvePath: (s) => s, root: "/" },
   resolveUrl: (s) => s,
 };
