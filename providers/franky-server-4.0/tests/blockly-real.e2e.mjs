@@ -57,6 +57,18 @@ const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m
 const targetScript = scripts.find((s) => s.includes("function defBlocks") && s.includes("var EJEMPLOS="));
 if (!targetScript) { console.error("No se encontró el script con defBlocks/EJEMPLOS"); process.exit(1); }
 vm.runInContext(targetScript, context, { filename: "bloques.html#script" });
+// Fase 2 P0 (auditoría estructural) — registrarFieldSprite() quedó definida
+// en OTRO <script> separado, más abajo en el HTML (responsive/listeners de
+// resize, agregados después). En un navegador real esto es inofensivo:
+// TODOS los <script> de nivel superior de una página comparten el mismo
+// `window`, y registrarFieldSprite()/defBlocks() recién se llaman desde
+// initBlockly() tras un setTimeout() posterior a la carga async de Blockly
+// — momento en el que el HTML entero (incluido este script) ya corrió.
+// Este test SÍ ejecuta cada <script> por separado en su propio vm.runInContext,
+// así que debe cargar también ese bloque para no reportar un falso negativo.
+const spriteScript = scripts.find((s) => s.includes("function registrarFieldSprite") && s !== targetScript);
+if (!spriteScript) { console.error("No se encontró el script con registrarFieldSprite"); process.exit(1); }
+vm.runInContext(spriteScript, context, { filename: "bloques.html#script(sprite)" });
 
 // registrarFieldSprite() + defBlocks() — mismo orden que initBlockly() real.
 vm.runInContext("registrarFieldSprite(); defBlocks();", context);
