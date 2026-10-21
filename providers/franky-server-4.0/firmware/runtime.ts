@@ -51,6 +51,17 @@ function popStack(m: FirmwareModel): number {
   return v !== undefined ? v : 0;
 }
 
+/** Push a la pila de trabajo respetando el límite PILA_MAX=8 del firmware real (mismo criterio que ya usa el case 90/OP_PUSH existente). */
+function pushStack(m: FirmwareModel, v: number): void {
+  m.pila.push(v);
+  if (m.pila.length > 8) m.pila.shift();
+}
+
+/** Saturación a int16 — mismo rango que usa el firmware físico (pila[] es int16_t) para las operaciones de pila. */
+function sat16(v: number): number {
+  return Math.max(-32768, Math.min(32767, v));
+}
+
 export interface ConfigureSumoInput {
   perfil: "micro" | "mini";
   tipo?: "sonar" | "optico" | "sharp";
@@ -475,6 +486,109 @@ export class FirmwareRuntime {
       case 62: m.varGlobal -= ins.val; m.progPC++; break; // OP_VAR_SUB
       case 70: m.adcLast = this.hal.analogRead(0); m.progPC += m.adcLast > ins.val ? 2 : 1; break; // OP_IF_GT
       case 71: m.adcLast = this.hal.analogRead(0); m.progPC += m.adcLast < ins.val ? 2 : 1; break; // OP_IF_LT
+      // ── Fase 2 P0 (Unidades 2/4/5/6/7) — réplica de los opcodes del
+      // firmware físico que bloques.html ya emite desde la Fase 2 P0 pero
+      // que este intérprete todavía no ejecutaba (causa raíz reportada:
+      // "variables, si/sino, repetir, expresiones, OLED/Serial dinámico y
+      // sonar por Blockly no funcionan"). Semántica idéntica a
+      // ejecutarBloque() real — mismo orden de pop, mismo saturado a
+      // int16, mismo manejo de "pila vacía nunca revienta". ──────────────
+      case 74: { // OP_REPEAT — empuja N en repeatStack (propia, separada de pila[]/callStack, igual que el .ino)
+        if (m.repeatStack.length < 8) m.repeatStack.push(ins.val);
+        m.progPC++;
+        break;
+      }
+      case 75: { // OP_PUSH_VAR — empuja varTabla[val] (val=0-3), saturado a int16 como el .ino
+        const idx = constrain(Math.trunc(ins.val), 0, 3);
+        pushStack(m, sat16(m.varTabla[idx]));
+        m.progPC++;
+        break;
+      }
+      case 76: { // OP_PUSH_ADC — val=pin*100+N; empuja el promedio de N lecturas analogRead(pin)
+        const pin = Math.trunc(ins.val / 100);
+        const nMuestras = Math.max(1, ins.val % 100);
+        let sum = 0;
+        for (let i = 0; i < nMuestras; i++) sum += this.hal.analogRead(pin);
+        pushStack(m, sat16(Math.trunc(sum / nMuestras)));
+        m.progPC++;
+        break;
+      }
+      case 77: { // OP_PUSH_SONAR — val=trig*100+echo. A diferencia del firmware físico (que lee
+        // SUS PROPIOS pines sin depender de la config de Sumo), el Laboratorio no tiene
+        // electricidad real que leer: solo puede simular los sensores sonar izq/der que
+        // Sumo ya configuró (cfgActiva().trigI/echoI y trigD/echoD) — ver informe de
+        // causa raíz, sección SENS-01. Si el par TRIG/ECHO elegido en Blockly coincide con
+        // alguno de los dos configurados, se devuelve SU lectura simulada (misma vía que ya
+        // usa getLabTelemetry().oponenteSensor: this.hal.analogRead(echoPin) está conectado
+        // por sw-entry.ts/worldModelHAL al raycast simulado, no a una tensión ADC real).
+        // Si no coincide con ninguno (o el perfil activo no usa sonar), no se inventa un
+        // tercer sensor: se devuelve 999 (mismo valor que el firmware real usa para "sin
+        // eco"), documentado, con aviso en el log.
+        const trig = Math.trunc(ins.val / 100), echo = ins.val % 100;
+        const cfg = this.cfgActiva();
+        let cm: number;
+        if (cfg.tipoDistSensor === TipoDistSensor.SONAR && trig === cfg.trigI && echo === cfg.echoI) {
+          cm = this.hal.analogRead(cfg.echoI);
+        } else if (cfg.tipoDistSensor === TipoDistSensor.SONAR && cfg.numDistSensores >= 2 && trig === cfg.trigD && echo === cfg.echoD) {
+          cm = this.hal.analogRead(cfg.echoD);
+        } else {
+          cm = 999;
+          if (flogThrottle(m, this.hal, "gen2", 1000)) {
+            flog(m, this.hal, "W", `PUSH_SONAR: TRIG=${trig}/ECHO=${echo} no coincide con ningún sonar configurado en Sumo (activo: ${cfg.tipoDistSensor === TipoDistSensor.SONAR ? `izq ${cfg.trigI}/${cfg.echoI}` + (cfg.numDistSensores >= 2 ? ` o der ${cfg.trigD}/${cfg.echoD}` : "") : "ningún sonar activo"}) — se devuelve 999 (sin eco), igual que el firmware real sin lectura válida`);
+          }
+        }
+        pushStack(m, sat16(cm));
+        m.progPC++;
+        break;
+      }
+      case 78: { const b = popStack(m), a = popStack(m); pushStack(m, sat16(a + b)); m.progPC++; break; } // OP_POP_ADD
+      case 79: { const b = popStack(m), a = popStack(m); pushStack(m, sat16(a - b)); m.progPC++; break; } // OP_POP_SUB
+      case 80: { const b = popStack(m), a = popStack(m); pushStack(m, sat16(a * b)); m.progPC++; break; } // OP_POP_MUL
+      case 81: { const b = popStack(m), a = popStack(m); pushStack(m, sat16(b !== 0 ? Math.trunc(a / b) : 0)); m.progPC++; break; } // OP_POP_DIV — b==0 -> 0, igual que el .ino
+      case 82: { const idx = constrain(Math.trunc(ins.val), 0, 3); m.varTabla[idx] = popStack(m); m.progPC++; break; } // OP_VAR_SET_EXPR
+      case 83: { const idx = constrain(Math.trunc(ins.val), 0, 3); m.varTabla[idx] += popStack(m); m.progPC++; break; } // OP_VAR_ADD_EXPR
+      case 84: { const idx = constrain(Math.trunc(ins.val), 0, 3); m.varTabla[idx] -= popStack(m); m.progPC++; break; } // OP_VAR_SUB_EXPR
+      case 85: { const b = popStack(m), a = popStack(m); m.progPC += a > b ? 2 : 1; break; } // OP_IF_GT_EXPR
+      case 86: { const b = popStack(m), a = popStack(m); m.progPC += a < b ? 2 : 1; break; } // OP_IF_LT_EXPR
+      case 87: { const b = popStack(m), a = popStack(m); m.progPC += a === b ? 2 : 1; break; } // OP_IF_EQ_EXPR
+      case 88: { // OP_REPEAT_END — val = índice absoluto de retorno (inicio del cuerpo). Misma repeatStack que case 74.
+        if (m.repeatStack.length > 0) {
+          const top = m.repeatStack.length - 1;
+          m.repeatStack[top]--;
+          if (m.repeatStack[top] > 0) { m.progPC = ins.val; }
+          else { m.repeatStack.pop(); m.progPC++; }
+        } else {
+          m.progPC++; // pila de ciclos vacía (programa mal formado) — nunca revienta, mismo criterio que popStack()
+        }
+        break;
+      }
+      case 115: { const b = popStack(m), a = popStack(m); pushStack(m, a !== b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_NE
+      case 116: { const b = popStack(m), a = popStack(m); pushStack(m, a !== 0 && b !== 0 ? 1 : 0); m.progPC++; break; } // OP_POP_AND
+      case 117: { const b = popStack(m), a = popStack(m); pushStack(m, a !== 0 || b !== 0 ? 1 : 0); m.progPC++; break; } // OP_POP_OR
+      case 118: { const a = popStack(m); pushStack(m, a === 0 ? 1 : 0); m.progPC++; break; } // OP_POP_NOT
+      case 119: { const a = popStack(m); m.progPC += a !== 0 ? 2 : 1; break; } // OP_IF_TRUE
+      case 124: { // OP_SERIAL_PRINT_VAR — pop(); imprime un valor numérico (no texto fijo) al Monitor Serie Virtual
+        const v = popStack(m);
+        m.serialLog.push(String(v));
+        if (m.serialLog.length > 50) m.serialLog.shift();
+        if (flogThrottle(m, this.hal, "gen2", 500)) flog(m, this.hal, "I", `SERIAL_PRINT_VAR: ${v}`);
+        m.progPC++;
+        break;
+      }
+      case 125: { // OP_OLED_PRINT_VAR — pop(); dibuja el valor numérico en el cursor ya posicionado por OLED_CURSOR (igual que OP_OLED_PRINT con texto fijo)
+        const v = popStack(m);
+        m.oled.draft.push({ kind: "text", x: m.oled.cursorX, y: m.oled.cursorY, text: String(v) });
+        m.progPC++;
+        break;
+      }
+      case 126: { const b = popStack(m), a = popStack(m); m.progPC += a >= b ? 2 : 1; break; } // OP_IF_GE_EXPR
+      case 127: { const b = popStack(m), a = popStack(m); m.progPC += a <= b ? 2 : 1; break; } // OP_IF_LE_EXPR
+      case 128: { const b = popStack(m), a = popStack(m); m.progPC += a !== b ? 2 : 1; break; } // OP_IF_NE_EXPR
+      case 129: { const b = popStack(m), a = popStack(m); pushStack(m, a > b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_GT
+      case 130: { const b = popStack(m), a = popStack(m); pushStack(m, a < b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_LT
+      case 131: { const b = popStack(m), a = popStack(m); pushStack(m, a === b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_EQ
+      case 132: { const b = popStack(m), a = popStack(m); pushStack(m, a >= b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_GE
+      case 133: { const b = popStack(m), a = popStack(m); pushStack(m, a <= b ? 1 : 0); m.progPC++; break; } // OP_PUSH_CMP_LE
       // ── Extensión de Laboratorio (opcodes 90+, NO existen en el
       // firmware real todavía — ver informe de evolución) ──────────────
       case 90: { // OP_PUSH — apila un valor en la pila de trabajo (máx 8)

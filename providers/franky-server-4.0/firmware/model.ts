@@ -270,7 +270,14 @@ export interface FirmwareModel {
   bEsperando: boolean;
   tBloque: number;
   bEsperaMs: number;
-  varGlobal: number;
+  varGlobal: number; // alias en vivo de varTabla[0] (no una copia) — ver defaultFirmwareModel(). Mismo #define varGlobal varTabla[0] del .ino físico.
+  // Unidad 2 (Fase 2 P0) — 4 variables con nombre (variables_get/variables_set
+  // estándar de Blockly, vía slotForVar() en bloques.html), igual que
+  // varTabla[4] del firmware físico. varTabla[0] y varGlobal son LA MISMA
+  // celda de memoria (accessor, ver defaultFirmwareModel()) — necesario para
+  // que un programa que mezcle la variable única vieja (f_var_set/f_var_add)
+  // con variables nuevas con nombre vea el mismo valor que vería el .ino real.
+  varTabla: number[];
   adcLast: number;
   servoGPIO: number; // -1 = ningún servo enganchado todavía
   servoAngle: number;
@@ -281,6 +288,11 @@ export interface FirmwareModel {
   // esto al firmware oficial más adelante sea un agregado, no un cambio.
   pila: number[]; // pila de trabajo (máx 8) — parámetros para dibujo/math
   callStack: number[]; // pila de retorno (máx 8) — para OP_CALL/OP_RET
+  // repeatStack[8] — Fase 2 P0 (Unidad 7, OP_REPEAT/OP_REPEAT_END, opcodes
+  // 74/88). Pila SEPARADA de pila[]/callStack[], réplica exacta de
+  // repeatStack[PILA_MAX] del firmware físico (contador de iteraciones de
+  // "repetir N veces", anidable hasta 8 niveles).
+  repeatStack: number[];
   oled: OledState;
   serialLog: string[]; // "Monitor Serie" — no existe en el firmware real, ver informe de evolución
   // FASE "PROGRAMA FUENTE" VIRTUAL (Sesión 1, auditoría Server-vs-LAB) —
@@ -393,7 +405,7 @@ export function defaultSumoConfigMicro(): SumoConfig {
 }
 
 export function defaultFirmwareModel(): FirmwareModel {
-  return {
+  const m: FirmwareModel = {
     currentMode: RobotMode.IDLE,
     modeRunning: false,
     motorSpeed: 200,
@@ -425,12 +437,14 @@ export function defaultFirmwareModel(): FirmwareModel {
     bEsperando: false,
     tBloque: 0,
     bEsperaMs: 0,
-    varGlobal: 0,
+    varGlobal: 0, // placeholder — se redefine como accessor de varTabla[0] más abajo, antes de devolver el objeto
+    varTabla: [0, 0, 0, 0],
     adcLast: 0,
     servoGPIO: -1,
     servoAngle: 0,
     pila: [],
     callStack: [],
+    repeatStack: [],
     oled: defaultOledState(),
     serialLog: [],
     programaFuenteXml: null,
@@ -460,6 +474,22 @@ export function defaultFirmwareModel(): FirmwareModel {
     sharpDetI: false,
     sharpDetD: false,
   };
+  // varGlobal es un accessor que lee/escribe varTabla[0] — NO una copia
+  // independiente. Réplica exacta de "#define varGlobal varTabla[0]" del
+  // .ino físico (ver model.ts línea de OP_PUSH_VAR más arriba): así, un
+  // programa que mezcle la variable única vieja (OP_VAR_SET/ADD/SUB,
+  // f_var_set/f_var_add) con variables nuevas con nombre (OP_PUSH_VAR/
+  // VAR_SET_EXPR, variables_get/variables_set) ve el mismo valor que vería
+  // el firmware real, sin que el Lab necesite mantener dos estados en
+  // paralelo. Todo el código existente (`m.varGlobal = x`, `model.varGlobal`
+  // en getLabTelemetry(), los tests) sigue funcionando sin cambios.
+  Object.defineProperty(m, "varGlobal", {
+    get(): number { return m.varTabla[0]; },
+    set(v: number) { m.varTabla[0] = v; },
+    enumerable: true,
+    configurable: true,
+  });
+  return m;
 }
 
 /**
