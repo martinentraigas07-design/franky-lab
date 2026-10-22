@@ -62,6 +62,26 @@ function sat16(v: number): number {
   return Math.max(-32768, Math.min(32767, v));
 }
 
+/**
+ * TP5 Actividad 13 — truncado de millis() a 16 bits CON DESBORDE (nunca
+ * sat16/clamp: eso congelaría el valor en 32767 para siempre apenas pasan
+ * ~32.7s de uptime, inutilizando cualquier temporizador). pila[] es
+ * int16_t en el firmware real (16 bits), mientras que millis() es de 32
+ * bits — no entra entero. Se toman los 16 bits bajos y se reinterpretan
+ * como int16_t (mismo patrón que `(int16_t)(uint16_t)millis()` en C),
+ * replicando el truco estándar de Arduino de comparar por RESTA en vez
+ * de por valor absoluto: mientras el intervalo real entre dos lecturas
+ * sea menor a 32768 ms (~32s, sobra para cualquier ejemplo de la
+ * Actividad 13), "actual - anterior" da el elapsed correcto aunque el
+ * contador haya envuelto entre una lectura y la otra — la resta de dos
+ * valores de 16 bits envuelve exactamente igual que la resta real de
+ * millis() de 32 bits, solo que con un período mucho más corto.
+ */
+function millisToInt16(ms: number): number {
+  const raw = Math.floor(ms) & 0xffff;
+  return raw >= 0x8000 ? raw - 0x10000 : raw;
+}
+
 export interface ConfigureSumoInput {
   perfil: "micro" | "mini";
   tipo?: "sonar" | "optico" | "sharp";
@@ -609,7 +629,14 @@ export class FirmwareRuntime {
         m.progPC = ret !== undefined ? ret : m.progPC + 1;
         break;
       }
-      case 94: m.varGlobal = this.hal.millis(); m.progPC++; break; // OP_MILLIS_READ
+      // TP5 Actividad 13 — antes escribía en varGlobal, pero bloques.html
+      // nunca llegó a emitir este opcode (compileExpr() no tenía case
+      // para "f_millis"), así que no hay programa real que haya dependido
+      // de esa escritura. Ahora empuja a pila[] como el resto de los
+      // PUSH_* (PUSH_VAR/PUSH_ADC/PUSH_SONAR), para poder usarse dentro
+      // de expresiones (variables_set, math_arithmetic, logic_compare) —
+      // ver millisToInt16() para el truncado seguro ante el desborde.
+      case 94: pushStack(m, millisToInt16(this.hal.millis())); m.progPC++; break; // OP_MILLIS_READ / PUSH_MILLIS
       case 95: { // OP_MATH_MAP — pop orden [value,fromLow,fromHigh,toLow,toHigh]
         const toHigh = popStack(m), toLow = popStack(m), fromHigh = popStack(m), fromLow = popStack(m), value = popStack(m);
         m.varGlobal = fromHigh === fromLow ? toLow : ((value - fromLow) * (toHigh - toLow)) / (fromHigh - fromLow) + toLow;

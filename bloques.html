@@ -320,6 +320,16 @@ var OP = {
   PUSH_VAR:75, PUSH_ADC:76, PUSH_SONAR:77,
   POP_ADD:78, POP_SUB:79, POP_MUL:80, POP_DIV:81,
   VAR_SET_EXPR:82, VAR_ADD_EXPR:83, VAR_SUB_EXPR:84,
+  // TP5 Actividad 13 (programación no bloqueante con millis()) — el
+  // opcode 94 (OP_MILLIS_READ) ya existía reservado en el firmware físico
+  // desde antes, pero ningún bloque llegaba a emitirlo (compileExpr() no
+  // tenía case para "f_millis" -> siempre compilaba a la constante 0, ver
+  // informe). Se reutiliza el mismo número, ahora con semántica PUSH_*
+  // (empuja a pila[], igual que PUSH_VAR/PUSH_ADC/PUSH_SONAR) en vez de
+  // escribir varGlobal — no hay compatibilidad hacia atrás que romper
+  // porque el opcode nunca se generó antes. Ver runtime.ts/.ino para el
+  // truncado a 16 bits (desborde seguro de millis(), pila[] es int16_t).
+  PUSH_MILLIS:94,
   // Unidad 4 (Fase 2 P0) — condicionales y lógica genéricos
   // (controls_if/logic_compare/logic_operation/logic_negate, estándar de
   // Blockly, antes en el toolbox sin case -> se ignoraban en silencio).
@@ -404,7 +414,6 @@ var TOOLBOX = `<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="f_ultrasonic"></block>
   <block type="f_dht_temp"></block>
   <block type="f_dht_hum"></block>
-  <block type="f_millis"></block>
 </category>
 <category name="PID *" colour="#ad1457">
   <block type="f_pid_set"><field name="KP">2.0</field><field name="KI">0.5</field><field name="KD">1.0</field></block>
@@ -453,6 +462,7 @@ var TOOLBOX = `<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="math_single"></block>
 </category>
 <category name="Tiempo" colour="#f57f17">
+  <block type="f_millis"></block>
   <block type="f_esperar"><field name="MS">500</field></block>
   <block type="f_esperar_us"><field name="US">100</field></block>
 </category>
@@ -649,6 +659,12 @@ function compileExpr(b, insts) {
       break;
     case "f_ultrasonic":
       insts.push({op:OP.PUSH_SONAR, val:(+b.getFieldValue("TRIG"))*100+(+b.getFieldValue("ECHO"))});
+      break;
+    // TP5 Actividad 13 — antes caía en el "default" de abajo (push 0
+    // constante): el bloque se veía y generaba texto C++ de referencia
+    // ("millis()"), pero el programa compilado nunca leía el reloj real.
+    case "f_millis":
+      insts.push({op:OP.PUSH_MILLIS, val:0});
       break;
     case "math_arithmetic": {
       var ea = b.getInputTargetBlock("A"), eb = b.getInputTargetBlock("B");
