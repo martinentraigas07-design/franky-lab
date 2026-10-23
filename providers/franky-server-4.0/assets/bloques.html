@@ -1276,8 +1276,14 @@ function fnv1a32(str){
 function guardarXmlEnRobot(xml){
   return fetch("/bloques/xml", {method:"POST", headers:{"Content-Type":"text/plain"}, body: xml})
     .then(function(r){
-      if(!r.ok) return r.json().then(function(d){throw new Error(d.error||("HTTP "+r.status));});
-      return r.json();
+      return r.text().then(function(texto){
+        var dato = null;
+        try { dato = JSON.parse(texto); } catch(e) { /* El servidor físico y el LAB pueden responder OK como texto. */ }
+        if(!r.ok || (dato && dato.ok === false)){
+          throw new Error((dato && dato.error) || texto || ("HTTP "+r.status));
+        }
+        return dato || {ok:true};
+      });
     });
 }
 function marcarFuenteSincronizada(xml){
