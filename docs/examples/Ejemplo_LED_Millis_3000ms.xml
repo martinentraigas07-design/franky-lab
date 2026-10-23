@@ -1,0 +1,120 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <variables>
+    <variable id="|]V;?GYI1RIHc$C5{G_S">tiempoAnterior</variable>
+    <variable id="pC[gB%#[{$VVu|eGECHb">estadoLED</variable>
+  </variables>
+  <block type="f_al_iniciar" id="WEVcx$RH+J=f@C{?Eo!q" x="10" y="10">
+    <statement name="DO">
+      <block type="variables_set" id="M(sda7?Syi3Ytki3_}H[">
+        <field name="VAR" id="|]V;?GYI1RIHc$C5{G_S">tiempoAnterior</field>
+        <value name="VALUE">
+          <block type="math_number" id="qMH)NqQQ(FmC^Grp^tq5">
+            <field name="NUM">0</field>
+          </block>
+        </value>
+        <next>
+          <block type="variables_set" id="}=G+Km|uKMU6DQ%|kr@2">
+            <field name="VAR" id="pC[gB%#[{$VVu|eGECHb">estadoLED</field>
+            <value name="VALUE">
+              <block type="math_number" id="Ca[TXx,A$;h/duQQ]4(!">
+                <field name="NUM">0</field>
+              </block>
+            </value>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+  <block type="f_repetir_siempre" id=",Se@(Mz,}gh[=bfnzgq9" x="10" y="10">
+    <statement name="DO">
+      <block type="controls_if" id="Me309iUGYf4kKrv4Kvw!">
+        <value name="IF0">
+          <block type="logic_compare" id="qEZh)L#]Zd`z1yNXTbz5">
+            <field name="OP">GTE</field>
+            <value name="A">
+              <block type="math_arithmetic" id="+).?@6fbQnBd{71uM_a/">
+                <field name="OP">MINUS</field>
+                <value name="A">
+                  <block type="f_millis" id="~O57R$AJNOYQc^A/#aiK"/>
+                </value>
+                <value name="B">
+                  <block type="variables_get" id="HXX/bdO%;(?}_uC/o9/K">
+                    <field name="VAR" id="|]V;?GYI1RIHc$C5{G_S">tiempoAnterior</field>
+                  </block>
+                </value>
+              </block>
+            </value>
+            <value name="B">
+              <block type="math_number" id="nr(;3F#1a}Wm6~s)xc|e">
+                <field name="NUM">3000</field>
+              </block>
+            </value>
+          </block>
+        </value>
+        <statement name="DO0">
+          <block type="variables_set" id="~lgI3h!TzZ+Gdm@s%rfl">
+            <field name="VAR" id="|]V;?GYI1RIHc$C5{G_S">tiempoAnterior</field>
+            <value name="VALUE">
+              <block type="f_millis" id="_CB{u+cP}ib{,$x-/mNU"/>
+            </value>
+            <next>
+              <block type="variables_set" id=")`xXYJ=t(t:Rxk`{Z^6_">
+                <field name="VAR" id="pC[gB%#[{$VVu|eGECHb">estadoLED</field>
+                <value name="VALUE">
+                  <block type="math_arithmetic" id="_hryINK28/}|Yb%UA!E(">
+                    <field name="OP">MINUS</field>
+                    <value name="A">
+                      <block type="math_number" id="wYt77{ay/,TOp~AtbDd3">
+                        <field name="NUM">1</field>
+                      </block>
+                    </value>
+                    <value name="B">
+                      <block type="variables_get" id="*rG8bP1Z;7yps*T;x*cG">
+                        <field name="VAR" id="pC[gB%#[{$VVu|eGECHb">estadoLED</field>
+                      </block>
+                    </value>
+                  </block>
+                </value>
+                <next>
+                  <block type="f_serial_print_var" id="#ew2C8OW]9(weHIK[Tn,">
+                    <value name="VAL">
+                      <block type="variables_get" id="?lN5yw?R-@ps]+O4Kgvp">
+                        <field name="VAR" id="pC[gB%#[{$VVu|eGECHb">estadoLED</field>
+                      </block>
+                    </value>
+                    <next>
+                      <block type="controls_if" id="o{3T@VH2*UxwK`s}PcS4">
+                        <mutation else="1"/>
+                        <value name="IF0">
+                          <block type="logic_compare" id="nY0s?r;[8ZdS)v-7K)2J">
+                            <field name="OP">NEQ</field>
+                            <value name="A">
+                              <block type="variables_get" id="9FNHvLt42K@W}|_#j9]s">
+                                <field name="VAR" id="pC[gB%#[{$VVu|eGECHb">estadoLED</field>
+                              </block>
+                            </value>
+                            <value name="B">
+                              <block type="math_number" id="Tg:?P[OCUV#Wnm9bTRz]">
+                                <field name="NUM">0</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                        <statement name="DO0">
+                          <block type="f_led_on" id="]w*h:q^Ol~8g5yL,Sx0^"/>
+                        </statement>
+                        <statement name="ELSE">
+                          <block type="f_led_off" id="_Z3HR_L^U4`B$SC5gb]9"/>
+                        </statement>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </statement>
+      </block>
+    </statement>
+  </block>
+</xml>

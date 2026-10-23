@@ -46,6 +46,34 @@ function millisToInt16(ms) {
     const raw = Math.floor(ms) & 0xffff;
     return raw >= 0x8000 ? raw - 0x10000 : raw;
 }
+/**
+ * Diagnóstico y corrección de temporizadores millis() (Síntomas A/B,
+ * "CLAUDE — DIAGNÓSTICO Y CORRECCIÓN DE TEMPORIZADORES millis()") —
+ * causa raíz CONFIRMADA (reproducida con el compilador+intérprete
+ * reales): millisToInt16() ya truncaba "con desborde" como corresponde,
+ * pero el truco de Arduino "ahora - antes" se rompía de todos modos
+ * porque OP_POP_SUB (case 79) pasa el resultado de la resta por sat16(),
+ * que SATURA (clampea) en vez de envolver. En cuanto millis() y el valor
+ * guardado quedan en lados opuestos del límite de ±32768, la resta se
+ * satura a un extremo fijo que nunca vuelve a cumplir ningún umbral
+ * positivo — el temporizador queda congelado para siempre (confirmado:
+ * 10 cambios correctos hasta t≈31s, cero cambios más hasta t=70s). Esta
+ * misma falla existe, idéntica, en el firmware físico real (OP_POP_SUB
+ * del .ino también usa constrain() en vez de wraparound) — no es una
+ * divergencia del Laboratorio.
+ *
+ * wrap16() envuelve el resultado en 16 bits (igual que el cast real
+ * `(int16_t)(uint16_t)x` en C) en vez de saturarlo — usado SOLO por
+ * OP_POP_SUB_T (89), el opcode dedicado que bloques.html emite para el
+ * patrón "millis() - variable" (ver compileExpr()). OP_POP_SUB (79)
+ * sigue intacto, con su saturación original, para cualquier otra resta
+ * genérica del programa — no se cambia el comportamiento de ninguna
+ * otra operación matemática existente.
+ */
+function wrap16(v) {
+    const raw = Math.trunc(v) & 0xffff;
+    return raw >= 0x8000 ? raw - 0x10000 : raw;
+}
 export class FirmwareRuntime {
     model;
     hal;
@@ -743,6 +771,12 @@ export class FirmwareRuntime {
                 m.progPC++;
                 break;
             } // OP_PUSH_CMP_LE
+            case 89: {
+                const b = popStack(m), a = popStack(m);
+                pushStack(m, wrap16(a - b));
+                m.progPC++;
+                break;
+            } // OP_POP_SUB_T — igual que OP_POP_SUB (79) pero envuelve en 16 bits en vez de saturar; único emisor: compileExpr() para "millis() - variable" (ver bloques.html)
             // ── Extensión de Laboratorio (opcodes 90+, NO existen en el
             // firmware real todavía — ver informe de evolución) ──────────────
             case 90: { // OP_PUSH — apila un valor en la pila de trabajo (máx 8)

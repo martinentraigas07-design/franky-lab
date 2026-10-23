@@ -86,6 +86,31 @@ export function startServiceWorker(
   });
 }
 
+// Diagnóstico Síntoma D (POST /bloques/xml -> 400 "Cuerpo vacio") — causa
+// raíz CONFIRMADA: este parser asumía SIEMPRE
+// application/x-www-form-urlencoded, sin mirar el Content-Type real.
+// guardarXmlEnRobot() en bloques.html manda el XML como body CRUDO con
+// Content-Type: text/plain (correcto — así se comporta de verdad el
+// WebServer de ESP32: cualquier POST que no sea form-urlencoded expone el
+// body entero bajo el pseudo-argumento "plain", server.arg("plain") en el
+// .ino real). Al parsear ese XML crudo como URLSearchParams se obtenía
+// basura/vacío -> body.plain quedaba undefined -> el handler de
+// /bloques/xml (con razón, desde su propio punto de vista) devolvía 400.
+// El cliente YA es correcto (no se toca); el fix va acá: replicar la
+// convención real de ESP32 según el Content-Type efectivo, en vez de
+// asumir form-urlencoded para todo POST. Extraída a su propia función
+// (antes inline en handleApiFetch) para poder probarla directamente sin
+// necesitar un ServiceWorkerGlobalScope real — ver swRuntime.selfTest.ts.
+export function parsePostBody(contentType: string | null, text: string): Query {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    return Object.fromEntries(new URLSearchParams(text));
+  }
+  // Cuerpo crudo (text/plain, application/json, sin Content-Type, etc.)
+  // -> igual que el ESP32 real, se expone entero bajo "plain".
+  return { plain: text };
+}
+
 async function handleApiFetch(
   server: ProviderServer,
   request: Request,
@@ -103,7 +128,7 @@ async function handleApiFetch(
   if (method === "POST") {
     try {
       const text = await request.text();
-      body = Object.fromEntries(new URLSearchParams(text));
+      body = parsePostBody(request.headers.get("content-type"), text);
     } catch {
       body = {};
     }

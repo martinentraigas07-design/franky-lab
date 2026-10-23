@@ -282,6 +282,24 @@ const char* FW_VER    = "3.2-LNR";
 #define OP_POP_SUB       79 // idem resta
 #define OP_POP_MUL       80 // idem multiplicación
 #define OP_POP_DIV       81 // idem división entera; b==0 -> push(0), documentado
+// Diagnóstico y corrección de temporizadores millis() (Síntomas A/B,
+// "CLAUDE — DIAGNÓSTICO Y CORRECCIÓN DE TEMPORIZADORES millis()") —
+// causa raíz CONFIRMADA: OP_MILLIS_READ (94) ya truncaba millis() "con
+// desborde" (ver su comentario, más abajo), pero OP_POP_SUB satura
+// (constrain()) el resultado de la resta en vez de envolverlo en 16
+// bits — rompe el truco clásico de Arduino "ahora - antes" en cuanto
+// millis() y el valor guardado quedan en lados opuestos del límite de
+// ±32768: la resta se satura a un extremo fijo que nunca vuelve a
+// cumplir ningún umbral positivo, y el temporizador queda congelado
+// para siempre (confirmado y reproducido en FRANKY-LAB, mismo bug
+// exacto, mismo intérprete replicado). OP_POP_SUB_T es idéntico a
+// OP_POP_SUB (misma pila, mismo pop-pop-push) salvo que ENVUELVE el
+// resultado en 16 bits en vez de saturarlo — único emisor: el
+// compilador (bloques.html) para el patrón "millis() - variable" (ver
+// compileExpr()). OP_POP_SUB sigue intacto, con su saturación original,
+// para cualquier otra resta genérica — no cambia el comportamiento de
+// ninguna otra operación matemática existente.
+#define OP_POP_SUB_T     89
 #define OP_VAR_SET_EXPR  82 // varTabla[val]=pop() (val=0-3)
 #define OP_VAR_ADD_EXPR  83 // varTabla[val]+=pop()
 #define OP_VAR_SUB_EXPR  84 // varTabla[val]-=pop()
@@ -2511,6 +2529,12 @@ void ejecutarBloque() {
     }
     case OP_POP_ADD: { long b=pilaPop(), a=pilaPop(); if(pilaLen<PILA_MAX) pila[pilaLen++]=(int16_t)constrain(a+b,-32768L,32767L); progPC++; break; }
     case OP_POP_SUB: { long b=pilaPop(), a=pilaPop(); if(pilaLen<PILA_MAX) pila[pilaLen++]=(int16_t)constrain(a-b,-32768L,32767L); progPC++; break; }
+    // OP_POP_SUB_T — igual que OP_POP_SUB pero ENVUELVE el resultado en 16
+    // bits ((int16_t)(uint16_t)x, igual criterio ya usado en
+    // OP_MILLIS_READ más abajo) en vez de saturar con constrain(). Único
+    // emisor: compileExpr() para "millis() - variable". Ver comentario
+    // junto a #define OP_POP_SUB_T para la causa raíz completa.
+    case OP_POP_SUB_T: { long b=pilaPop(), a=pilaPop(); if(pilaLen<PILA_MAX) pila[pilaLen++]=(int16_t)(uint16_t)(a-b); progPC++; break; }
     case OP_POP_MUL: { long b=pilaPop(), a=pilaPop(); if(pilaLen<PILA_MAX) pila[pilaLen++]=(int16_t)constrain(a*b,-32768L,32767L); progPC++; break; }
     case OP_POP_DIV: {
       long b=pilaPop(), a=pilaPop();
