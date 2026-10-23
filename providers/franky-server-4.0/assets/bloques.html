@@ -1399,7 +1399,7 @@ function actualizarEstadoWorkspace(){
   // adaptando el shape de /api (proglen/running/modoTexto="BLOQUES") al
   // mismo shape que ya consume el resto de esta función.
   Promise.all([
-    fetch("/runtime/estado").then(function(r){ if(!r.ok) throw new Error("404"); return r.json(); })
+    (navigator.serviceWorker && navigator.serviceWorker.controller ? fetch("/api").then(function(r){ return r.json(); }).then(function(d){ return { progLen: d.proglen, ejecutando: !!d.running, modoTexto: d.modoTexto === "BLOQUES" ? "BLOCKLY" : d.modoTexto }; }) : fetch("/runtime/estado").then(function(r){ if(!r.ok) throw new Error("404"); return r.json(); }))
       .catch(function(){
         return fetch("/api").then(function(r){ return r.json(); }).then(function(d){
           return { progLen: d.proglen, ejecutando: !!d.running, modoTexto: d.modoTexto === "BLOQUES" ? "BLOCKLY" : d.modoTexto };
