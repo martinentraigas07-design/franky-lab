@@ -1399,12 +1399,25 @@ function actualizarEstadoWorkspace(){
   // adaptando el shape de /api (proglen/running/modoTexto="BLOQUES") al
   // mismo shape que ya consume el resto de esta función.
   Promise.all([
-    (navigator.serviceWorker && navigator.serviceWorker.controller ? fetch("/api").then(function(r){ return r.json(); }).then(function(d){ return { progLen: d.proglen, ejecutando: !!d.running, modoTexto: d.modoTexto === "BLOQUES" ? "BLOCKLY" : d.modoTexto }; }) : fetch("/runtime/estado").then(function(r){ if(!r.ok) throw new Error("404"); return r.json(); }))
-      .catch(function(){
-        return fetch("/api").then(function(r){ return r.json(); }).then(function(d){
-          return { progLen: d.proglen, ejecutando: !!d.running, modoTexto: d.modoTexto === "BLOQUES" ? "BLOCKLY" : d.modoTexto };
-        });
-      }),
+    // /api existe tanto en FRANKY-LAB como en el firmware físico.
+    // Consultarlo primero evita el 404 visible de /runtime/estado cuando
+    // el Service Worker todavía no controla la página (primera carga).
+    fetch("/api").then(function(r){
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return r.json();
+    }).then(function(d){
+      if(typeof d.proglen !== "number" || typeof d.running === "undefined")
+        throw new Error("API sin campos de estado Blockly");
+      var modo = d.modoTexto || d.mode;
+      return {progLen:d.proglen, ejecutando:!!d.running,
+        modoTexto:(modo === "BLOQUES" || modo === 7 || modo === "7") ? "BLOCKLY" : modo};
+    }).catch(function(){
+      // Compatibilidad: versiones antiguas del firmware físico.
+      return fetch("/runtime/estado").then(function(r){
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        return r.json();
+      });
+    }),
     fetch("/bloques/xml").then(r=>r.json()).catch(()=>null)
   ]).then(function(res){
     var d = res[0], xmlInfo = res[1];
