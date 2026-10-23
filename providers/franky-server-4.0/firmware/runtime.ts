@@ -701,7 +701,19 @@ export class FirmwareRuntime {
         m.buzzerLastPlayedAt = this.hal.millis();
         m.progPC++;
         break;
-      case 0: default: stopMotorsShared(m, this.hal); m.progPC = 0; break; // OP_FIN / cualquier opcode desconocido
+      // OP_FIN (0): fin del programa compilado. Antes volvía SIEMPRE a
+      // progPC=0, reiniciando el programa entero en cada vuelta — no
+      // existía forma de distinguir "una sola vez al principio" de "se
+      // repite". Corrección (separación Al iniciar/Repetir
+      // continuamente): el compilador (bloques.html, wsToInstructions())
+      // ahora guarda en ins.val el índice absoluto al que hay que volver
+      // -- 0 si el programa no usa los bloques nuevos (idéntico al
+      // comportamiento de siempre, compatibilidad hacia atrás), o el
+      // índice justo después de "Al iniciar" cuando sí los usa, para que
+      // esa parte no se vuelva a ejecutar. ins.val SIEMPRE viene del
+      // compilador real, nunca se recalcula acá.
+      case 0: stopMotorsShared(m, this.hal); m.progPC = ins.val; break; // OP_FIN
+      default: stopMotorsShared(m, this.hal); m.progPC = 0; break; // opcode desconocido/corrupto — fallback de seguridad sin cambios
     }
   }
 

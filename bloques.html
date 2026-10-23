@@ -443,6 +443,8 @@ var TOOLBOX = `<xml xmlns="https://developers.google.com/blockly/xml">
   <block type="logic_negate"></block>
 </category>
 <category name="Control" colour="#01579b">
+  <block type="f_al_iniciar"></block>
+  <block type="f_repetir_siempre"></block>
   <block type="f_repeat"><field name="N">3</field></block>
   <block type="f_while_gt"><field name="UMBRAL">2000</field></block>
   <block type="controls_repeat_ext"><value name="TIMES"><block type="math_number"><field name="NUM">5</field></block></value></block>
@@ -522,6 +524,15 @@ function defBlocks() {
     // Decision
     {type:"f_if_gt",message0:"Si ADC0 > %1 entonces",args0:[{type:"field_number",name:"UMBRAL",value:2000}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
     {type:"f_if_lt",message0:"Si ADC0 < %1 entonces",args0:[{type:"field_number",name:"UMBRAL",value:1000}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#1565c0"},
+    // Control — separación funcional inicio/ciclo (equivalente a
+    // setup()/loop() de Arduino). Ver clasificarBloquesTopLevel() y
+    // wsToInstructions() más abajo para cómo se traduce esto a
+    // bytecode real: estos NO son solo dos bloques visuales, el
+    // contenido de "Al iniciar" se compila una sola vez al principio
+    // del programa y el de "Repetir continuamente" es a partir de
+    // donde OP_FIN hace volver en cada vuelta.
+    {type:"f_al_iniciar",message0:"Al iniciar",message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#004d40",tooltip:"Instrucciones que se ejecutan una sola vez al arrancar el programa (equivalente a setup() de Arduino): inicializar variables, apagar motores/LED, fijar estados iniciales."},
+    {type:"f_repetir_siempre",message0:"Repetir continuamente",message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#00695c",tooltip:"Instrucciones que se repiten mientras el programa está activo (equivalente a loop() de Arduino): leer sensores, evaluar condiciones, controlar motores. Las variables conservan su valor entre vueltas."},
     // Control
     {type:"f_repeat",message0:"Repetir %1 veces",args0:[{type:"field_number",name:"N",value:3,min:1,max:100}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#01579b"},
     {type:"f_while_gt",message0:"Mientras ADC0 > %1",args0:[{type:"field_number",name:"UMBRAL",value:500}],message1:"%1",args1:[{type:"input_statement",name:"DO"}],previousStatement:null,nextStatement:null,colour:"#0277bd"},
@@ -718,12 +729,69 @@ function compileExpr(b, insts) {
       insts.push({op:OP.PUSH, val:0});
   }
 }
+// ── Separación funcional "Al iniciar" / "Repetir continuamente" ──
+// Corrección de inicialización y ciclo principal (equivalente a
+// setup()/loop() de Arduino). Clasifica los bloques de NIVEL
+// SUPERIOR del workspace en dos listas de "cabezas de cadena":
+// setupHeads (se compilan una sola vez, al principio) y loopHeads
+// (se compilan después, y es ahí donde OP_FIN hace volver en cada
+// vuelta). La usan tanto wsToInstructions() [bytecode real, lo que
+// de verdad se ejecuta] como _doUpdateCode() [texto C++ de
+// referencia], para que ambos coincidan siempre.
+//
+// Reglas (ver informe técnico para el detalle y los casos de
+// compatibilidad hacia atrás):
+//  - "f_al_iniciar": su contenido (input "DO") va a setupHeads. Si
+//    tiene algo encadenado DEBAJO (conector inferior, no dentro del
+//    hueco "DO") eso NO es inicialización -- se manda a loopHeads,
+//    así un programa viejo no se "pierde" si alguien le agrega un
+//    "Al iniciar" arriba sin envolver el resto en "Repetir
+//    continuamente".
+//  - "f_repetir_siempre": su contenido (input "DO") va a loopHeads,
+//    y lo que esté encadenado debajo del contenedor también (sigue
+//    siendo parte del ciclo).
+//  - Cualquier otro bloque de nivel superior (programas anteriores a
+//    esta actualización, que no usan ninguno de los dos bloques
+//    nuevos, o bloques sueltos mezclados con ellos) se considera
+//    parte del ciclo principal -- preserva el comportamiento de
+//    SIEMPRE haber sido "todo se repite", que es como funcionaban
+//    los programas Blockly antes de esta corrección.
+function clasificarBloquesTopLevel(ws) {
+  var setupHeads = [], loopHeads = [];
+  ws.getTopBlocks(true).forEach(function(b) {
+    if (b.type === "f_al_iniciar") {
+      var doHead = b.getInputTargetBlock("DO");
+      if (doHead) setupHeads.push(doHead);
+      var next = b.getNextBlock();
+      if (next) loopHeads.push(next);
+    } else if (b.type === "f_repetir_siempre") {
+      var doHead2 = b.getInputTargetBlock("DO");
+      if (doHead2) loopHeads.push(doHead2);
+      var next2 = b.getNextBlock();
+      if (next2) loopHeads.push(next2);
+    } else {
+      loopHeads.push(b);
+    }
+  });
+  return {setupHeads: setupHeads, loopHeads: loopHeads};
+}
 // ── Traducir a instrucciones ESP32 ────────────────────
+// IMPORTANTE (compatibilidad hacia atrás): cuando el workspace no
+// usa "f_al_iniciar" ni "f_repetir_siempre" en ningún lado (todos
+// los programas Blockly anteriores a esta corrección),
+// clasificarBloquesTopLevel() devuelve setupHeads=[] y
+// loopHeads=getTopBlocks(true) EN EL MISMO ORDEN que antes, por lo
+// que loopStartIdx queda en 0 y el bytecode generado es byte a byte
+// IDÉNTICO al que generaba la versión previa de esta función -- cero
+// cambio de comportamiento para proyectos viejos.
 function wsToInstructions() {
   var insts=[];
   resetVarSlots();
-  workspace.getTopBlocks(true).forEach(b=>parseBlock(b,insts));
-  if(insts.length>0) insts.push({op:OP.FIN,val:0});
+  var clasif = clasificarBloquesTopLevel(workspace);
+  clasif.setupHeads.forEach(function(h){ parseBlock(h, insts); });
+  var loopStartIdx = insts.length; // 0 si no hay "Al iniciar" con contenido real
+  clasif.loopHeads.forEach(function(h){ parseBlock(h, insts); });
+  if(insts.length>0) insts.push({op:OP.FIN,val:loopStartIdx});
   return insts;
 }
 // ── FIX (Fase 3): antes, "si ADC0>umbral entonces [A,B,C]" solo
@@ -947,13 +1015,39 @@ function updateCode(){
   clearTimeout(_updateTimer);
   _updateTimer=setTimeout(function(){_doUpdateCode();},150);
 }
+// Genera el texto C++ de referencia para una cadena de bloques que
+// arranca en "headBlock" (p.ej. el contenido del "DO" de "Al
+// iniciar"/"Repetir continuamente", o un bloque suelto de nivel
+// superior) usando el generador real de Blockly, bloque por bloque
+// (opt_thisOnly=true) y avanzando nosotros mismos por getNextBlock()
+// -- exactamente la misma forma de recorrer la cadena que usa
+// parseBlock() para compilar a bytecode, para que el texto C++ de la
+// pestaña "Código C++" refleje siempre la MISMA separación setup()/
+// loop() que el programa que de verdad se ejecuta (Prueba G).
+function cadenaACodigo(gen, headBlock) {
+  var out = "";
+  var cur = headBlock;
+  while (cur) {
+    try { out += gen.blockToCode(cur, true); } catch(e3) { console.warn("gen error:", e3.message); }
+    cur = cur.getNextBlock();
+  }
+  return out;
+}
 function _doUpdateCode(){
   if(!workspace) return;
   try {
     // API moderna: workspaceToCode esta en el objeto generador directamente
     var gen = Blockly.JavaScript;
-    var code = "";
-    try { code = gen.workspaceToCode(workspace); } catch(e2) { console.warn("gen error:", e2.message); }
+    // IMPORTANTE: antes se llamaba a gen.workspaceToCode(workspace), que
+    // internamente hace init()+recorrido+finish(). Ahora que el recorrido
+    // lo hacemos nosotros a mano (para separar setup/loop) hay que llamar
+    // gen.init(workspace) ANTES de usar blockToCode() -- si no, Blockly
+    // tira "Name database is not defined" (nameDB_ sin inicializar).
+    gen.init(workspace);
+    var clasifCpp = clasificarBloquesTopLevel(workspace);
+    var setupCode = clasifCpp.setupHeads.map(function(h){ return cadenaACodigo(gen, h); }).join("");
+    var loopCode = clasifCpp.loopHeads.map(function(h){ return cadenaACodigo(gen, h); }).join("");
+    if (typeof gen.finish === "function") { try { gen.finish(""); } catch(e4) {} }
     var all=workspace.getAllBlocks(false);
     // Contar todos los bloques Franky (f_) mas los estandares de Blockly en uso
     var cnt=all.filter(function(b){
@@ -979,9 +1073,18 @@ function _doUpdateCode(){
     if(libs.size>0){lw.style.display="block";ll.textContent=[...libs].join(" | ");}
     else lw.style.display="none";
     var nl="\n";
-    var header="// Franky 4.0 -- Codigo generado"+nl+"void loop() {"+nl;
-    var body=code ? code.split(nl).map(function(l){return "  "+l;}).join(nl) : "  // sin instrucciones";
-    var full=header+body+nl+"}";
+    // Separación real setup()/loop(): el contenido de "Al iniciar" (si
+    // hay) se vuelca en setup(), el de "Repetir continuamente" + todo
+    // bloque suelto de nivel superior (compatibilidad con programas
+    // anteriores a esta corrección) se vuelca en loop() -- misma
+    // clasificación (clasificarBloquesTopLevel) que usa wsToInstructions()
+    // para el bytecode real que de verdad ejecutan el Laboratorio y el
+    // Server, así este texto nunca queda desincronizado de lo que
+    // realmente corre.
+    var header="// Franky 4.0 -- Codigo generado"+nl;
+    var setupBody=setupCode ? setupCode.split(nl).filter(function(l){return l!=="";}).map(function(l){return "  "+l;}).join(nl) : "  // sin instrucciones";
+    var loopBody=loopCode ? loopCode.split(nl).filter(function(l){return l!=="";}).map(function(l){return "  "+l;}).join(nl) : "  // sin instrucciones";
+    var full=header+"void setup() {"+nl+setupBody+nl+"}"+nl+nl+"void loop() {"+nl+loopBody+nl+"}";
     document.getElementById("code-out").textContent=full;
     var insts=wsToInstructions();
     var it="["+nl;
