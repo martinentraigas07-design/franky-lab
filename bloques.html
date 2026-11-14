@@ -787,7 +787,12 @@ function clasificarBloquesTopLevel(ws) {
       var doHead = b.getInputTargetBlock("DO");
       if (doHead) setupHeads.push(doHead);
       var next = b.getNextBlock();
-      if (next) loopHeads.push(next);
+      if (next && next.type === "f_repetir_siempre") {
+        var loopBody = next.getInputTargetBlock("DO");
+        if (loopBody) loopHeads.push(loopBody);
+        var afterLoop = next.getNextBlock();
+        if (afterLoop) loopHeads.push(afterLoop);
+      } else if (next) loopHeads.push(next);
     } else if (b.type === "f_repetir_siempre") {
       var doHead2 = b.getInputTargetBlock("DO");
       if (doHead2) loopHeads.push(doHead2);
