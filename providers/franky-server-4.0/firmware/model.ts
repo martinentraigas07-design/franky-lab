@@ -210,7 +210,7 @@ export function defaultOledState(): OledState {
   return { on: false, cursorX: 0, cursorY: 0, draft: [], shown: [], panelDetectado: false, panelAncho: 128, panelAlto: 64, panelAddr: 0x3c };
 }
 
-export const MAX_INST = 64;
+export const MAX_INST = 150;
 
 /**
  * TABLA_BITMAP_MAX — réplica del límite real (TABLA_BITMAP_MAX=8, Fase
