@@ -365,6 +365,9 @@ var OP = {
   POP_SUB_T:89
 };
 
+var LIMITE_COMPILADOR = 140;
+var ultimoCompiladoTruncado = false;
+
 function mkPinOpts() {
   return [
     ["GPIO0 — ADC0","0"],["GPIO1 — ADC1","1"],
@@ -807,6 +810,7 @@ function clasificarBloquesTopLevel(ws) {
 // cambio de comportamiento para proyectos viejos.
 function wsToInstructions() {
   var insts=[];
+  ultimoCompiladoTruncado = false;
   resetVarSlots();
   var clasif = clasificarBloquesTopLevel(workspace);
   clasif.setupHeads.forEach(function(h){ parseBlock(h, insts); });
@@ -933,7 +937,8 @@ function compileControlsIf(b, insts) {
   endJmps.forEach(function(idx) { insts[idx] = {op:OP.JMP, val:endIdx}; });
 }
 function parseBlock(b,insts){
-  if(!b||insts.length>=60) return;
+  if(!b) return;
+  if(insts.length>=LIMITE_COMPILADOR){ ultimoCompiladoTruncado = true; return; }
   switch(b.type){
     case "f_adelante": insts.push({op:OP.ADE,val:+b.getFieldValue("VEL")}); break;
     case "f_atras":    insts.push({op:OP.ATR,val:+b.getFieldValue("VEL")}); break;
@@ -1080,7 +1085,12 @@ function _doUpdateCode(){
              b.type==="math_single"||b.type==="variables_get"||
              b.type==="variables_set";
     }).length;
-    document.getElementById("blk-cnt").textContent=cnt+" bloques";
+    var instsPreview;
+    try { instsPreview = wsToInstructions(); } catch(ePrev) { instsPreview = []; }
+    var nInsts = instsPreview.length;
+    var cntEl = document.getElementById("blk-cnt");
+    cntEl.textContent = cnt+" bloques — "+nInsts+"/"+LIMITE_COMPILADOR+" instrucciones";
+    cntEl.style.color = ultimoCompiladoTruncado ? "#c0392b" : (nInsts >= LIMITE_COMPILADOR*0.85 ? "#b36b00" : "");
     var libs=new Set();
     all.forEach(function(b){
       if(b.type==="f_servo"||b.type==="f_servo_sweep") libs.add("ESP32Servo");
@@ -1478,6 +1488,10 @@ function toggleRun(){
   }
   var insts=wsToInstructions().filter(i=>!i.cppOnly);
   if(insts.length<=1){setStatus("Agrega bloques primero","stop");return;}
+  if (ultimoCompiladoTruncado) {
+    setStatus("Programa demasiado grande (más de "+LIMITE_COMPILADOR+" instrucciones) — dividilo en programas más chicos","stop");
+    return;
+  }
   var xmlActual = xmlDomToText(Blockly.Xml.workspaceToDom(workspace));
   setStatus("Enviando "+insts.length+" instrucciones...","wait");
   subirInstruccionesAlRobot(insts)
